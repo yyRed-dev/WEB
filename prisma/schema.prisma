@@ -1,0 +1,300 @@
+// =====================================================================
+// Portal de Atividades Complementares — modelo de dados (Prisma + MySQL)
+// =====================================================================
+// Este arquivo é a "fonte da verdade" do banco. A partir dele o Prisma:
+//   * gera o cliente usado no código   (npx prisma generate)
+//   * cria/atualiza as tabelas          (npx prisma migrate dev | deploy)
+//
+// Convenções:
+//   * No código (JavaScript) os nomes ficam em camelCase: cargaHorariaMinima.
+//   * No MySQL ficam em snake_case: carga_horaria_minima (via @map/@@map).
+//   * Horas são Decimal(6,2) para aceitar 1,5 h. O Prisma devolve Decimal
+//     como objeto; o código converte para número antes de responder.
+//   * Regras que o Prisma não expressa (CHECK) estão no SQL da migração
+//     inicial: prisma/migrations/20261022000000_inicial/migration.sql
+//   * Histórico não é apagado: usamos `ativo`, status CANCELADA etc.
+// =====================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------
+
+/// Perfis do sistema. COORDENADOR é quem avalia as submissões dos alunos
+/// do curso que coordena (o "Painel do Coordenador" das telas).
+enum Perfil {
+  ALUNO
+  ORGANIZADOR
+  COORDENADOR
+  ADMINISTRADOR
+}
+
+enum Modalidade {
+  PRESENCIAL
+  ONLINE
+  HIBRIDA
+}
+
+enum StatusAtividade {
+  ATIVA
+  CANCELADA
+}
+
+enum StatusSubmissao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
+enum ResultadoAvaliacao {
+  APROVADA
+  REJEITADA
+}
+
+// ---------------------------------------------------------------------
+// Cursos e metas
+// ---------------------------------------------------------------------
+
+/// Cada curso com sua carga horária mínima complementar.
+model Curso {
+  id                 Int      @id @default(autoincrement())
+  nome               String   @unique @db.VarChar(150)
+  cargaHorariaMinima Decimal  @map("carga_horaria_minima") @db.Decimal(6, 2)
+  ativo              Boolean  @default(true)
+  criadoEm           DateTime @default(now()) @map("criado_em")
+  atualizadoEm       DateTime @updatedAt @map("atualizado_em")
+
+  usuarios   Usuario[]
+  metas      MetaCategoriaCurso[]
+  atividades AtividadeCurso[]
+
+  @@map("cursos")
+}
+
+/// Meta de horas de um curso em uma categoria (ex.: Ensino 60 h).
+/// É apenas uma META VISUAL para o dashboard: não limita nem bloqueia a
+/// conclusão. O total do curso continua sendo `cursos.carga_horaria_minima`.
+model MetaCategoriaCurso {
+  cursoId     Int     @map("curso_id")
+  categoriaId Int     @map("categoria_id")
+  horasMeta   Decimal @map("horas_meta") @db.Decimal(6, 2)
+
+  curso     Curso     @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  categoria Categoria @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+
+  @@id([cursoId, categoriaId])
+  @@index([categoriaId])
+  @@map("curso_categoria_metas")
+}
+
+// ---------------------------------------------------------------------
+// Usuários
+// ---------------------------------------------------------------------
+
+/// Tabela única para todos os perfis. Não há senha: a autenticação será
+/// feita pelo sistema da Unifor. A matrícula identifica o usuário.
+/// curso_id: curso do ALUNO, ou curso que o COORDENADOR coordena.
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  matricula    String   @unique @db.VarChar(20)
+  nome         String   @db.VarChar(150)
+  email        String?  @unique @db.VarChar(254)
+  perfil       Perfil   @default(ALUNO)
+  cursoId      Int?     @map("curso_id")
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  curso                Curso?        @relation(fields: [cursoId], references: [id], onDelete: Restrict)
+  atividadesOrganizadas Atividade[]   @relation("OrganizadorAtividade")
+  submissoes           Submissao[]   @relation("AlunoSubmissao")
+  submissoesAvaliadas  Submissao[]   @relation("AvaliadorSubmissao")
+  avaliacoes           Avaliacao[]
+  comprovantesEnviados Comprovante[]
+
+  @@index([cursoId])
+  @@map("usuarios")
+}
+
+// ---------------------------------------------------------------------
+// Categorias e tipos
+// ---------------------------------------------------------------------
+
+/// Categoria acadêmica: Ensino, Pesquisa, Extensão. As horas por categoria
+/// do dashboard são somadas por aqui. Em uso = desativar, nunca apagar.
+model Categoria {
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique @db.VarChar(100)
+  descricao    String?  @db.VarChar(500)
+  ativa        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  atividades Atividade[]
+  submissoes Submissao[]
+  metas      MetaCategoriaCurso[]
+
+  @@map("categorias")
+}
+
+/// Formato da atividade: Evento, Minicurso, Workshop, Estágio...
+/// Serve para filtrar o catálogo; não entra no cálculo de horas.
+model TipoAtividade {
+  id           Int      @id @default(autoincrement())
+  nome         String   @unique @db.VarChar(60)
+  ativo        Boolean  @default(true)
+  criadoEm     DateTime @default(now()) @map("criado_em")
+  atualizadoEm DateTime @updatedAt @map("atualizado_em")
+
+  atividades Atividade[]
+
+  @@map("tipos_atividade")
+}
+
+// ---------------------------------------------------------------------
+// Atividades (catálogo)
+// ---------------------------------------------------------------------
+
+/// Atividade publicada no catálogo. O portal não faz inscrição:
+/// inscricaoInfo/link/contato dizem ao aluno como se inscrever.
+model Atividade {
+  id                 Int             @id @default(autoincrement())
+  titulo             String          @db.VarChar(200)
+  descricao          String          @db.Text
+  categoriaId        Int             @map("categoria_id")
+  tipoId             Int             @map("tipo_id")
+  modalidade         Modalidade
+  dataInicio         DateTime        @map("data_inicio")
+  dataFim            DateTime?       @map("data_fim")
+  local              String?         @db.VarChar(255)
+  link               String?         @db.VarChar(500)
+  imagemUrl          String?         @map("imagem_url") @db.VarChar(500)
+  cargaHoraria       Decimal         @map("carga_horaria") @db.Decimal(6, 2)
+  prazoInscricao     DateTime?       @map("prazo_inscricao")
+  vagas              Int?            @db.UnsignedInt
+  inscricaoInfo      String?         @map("inscricao_info") @db.VarChar(1000)
+  contato            String?         @db.VarChar(255)
+  organizadorId      Int             @map("organizador_id")
+  status             StatusAtividade @default(ATIVA)
+  motivoCancelamento String?         @map("motivo_cancelamento") @db.VarChar(500)
+  criadoEm           DateTime        @default(now()) @map("criado_em")
+  atualizadoEm       DateTime        @updatedAt @map("atualizado_em")
+
+  categoria   Categoria        @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  tipo        TipoAtividade    @relation(fields: [tipoId], references: [id], onDelete: Restrict)
+  organizador Usuario          @relation("OrganizadorAtividade", fields: [organizadorId], references: [id], onDelete: Restrict)
+  cursos      AtividadeCurso[]
+  submissoes  Submissao[]
+
+  @@index([categoriaId])
+  @@index([tipoId])
+  @@index([organizadorId])
+  @@index([dataInicio])
+  @@map("atividades")
+}
+
+/// Cursos para os quais a atividade é RECOMENDADA. Só destaca; nunca esconde.
+/// Sem nenhuma linha = atividade de interesse geral.
+model AtividadeCurso {
+  atividadeId Int @map("atividade_id")
+  cursoId     Int @map("curso_id")
+
+  atividade Atividade @relation(fields: [atividadeId], references: [id], onDelete: Cascade)
+  curso     Curso     @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+
+  @@id([atividadeId, cursoId])
+  @@index([cursoId])
+  @@map("atividade_cursos")
+}
+
+// ---------------------------------------------------------------------
+// Submissões, comprovantes e avaliações
+// ---------------------------------------------------------------------
+
+/// Pedido do aluno para validar horas.
+///   atividadeId vazio      -> atividade EXTERNA (estágio, curso de fora...)
+///   atividadeId preenchido -> atividade do catálogo
+/// O total do aluno NUNCA é gravado: é sempre a soma de horasAprovadas
+/// das submissões APROVADAS (calculado em /api/progresso).
+model Submissao {
+  id               Int             @id @default(autoincrement())
+  alunoId          Int             @map("aluno_id")
+  atividadeId      Int?            @map("atividade_id")
+  categoriaId      Int             @map("categoria_id")
+  titulo           String          @db.VarChar(200)
+  instituicao      String?         @db.VarChar(200)
+  descricao        String?         @db.Text
+  dataInicio       DateTime        @map("data_inicio") @db.Date
+  dataFim          DateTime?       @map("data_fim") @db.Date
+  horasSolicitadas Decimal         @map("horas_solicitadas") @db.Decimal(6, 2)
+  horasAprovadas   Decimal?        @map("horas_aprovadas") @db.Decimal(6, 2)
+  status           StatusSubmissao @default(PENDENTE)
+  permiteCorrecao  Boolean         @default(false) @map("permite_correcao")
+  justificativa    String?         @db.Text
+  avaliadorId      Int?            @map("avaliador_id")
+  enviadaEm        DateTime        @default(now()) @map("enviada_em")
+  avaliadaEm       DateTime?       @map("avaliada_em")
+  atualizadaEm     DateTime        @updatedAt @map("atualizada_em")
+
+  aluno        Usuario       @relation("AlunoSubmissao", fields: [alunoId], references: [id], onDelete: Restrict)
+  atividade    Atividade?    @relation(fields: [atividadeId], references: [id], onDelete: Restrict)
+  categoria    Categoria     @relation(fields: [categoriaId], references: [id], onDelete: Restrict)
+  avaliador    Usuario?      @relation("AvaliadorSubmissao", fields: [avaliadorId], references: [id], onDelete: Restrict)
+  comprovantes Comprovante[]
+  avaliacoes   Avaliacao[]
+
+  @@unique([alunoId, atividadeId])
+  @@index([status])
+  @@index([categoriaId])
+  @@index([atividadeId])
+  @@index([avaliadorId])
+  @@map("submissoes")
+}
+
+/// Metadados do arquivo enviado (o arquivo fica no disco, fora da pasta pública).
+model Comprovante {
+  id             Int      @id @default(autoincrement())
+  submissaoId    Int      @map("submissao_id")
+  nomeOriginal   String   @map("nome_original") @db.VarChar(255)
+  nomeArmazenado String   @unique @map("nome_armazenado") @db.VarChar(100)
+  tipoMime       String   @map("tipo_mime") @db.VarChar(50)
+  tamanhoBytes   Int      @map("tamanho_bytes") @db.UnsignedInt
+  sha256         String   @db.Char(64)
+  enviadoPorId   Int      @map("enviado_por")
+  enviadoEm      DateTime @default(now()) @map("enviado_em")
+
+  submissao  Submissao @relation(fields: [submissaoId], references: [id], onDelete: Restrict)
+  enviadoPor Usuario   @relation(fields: [enviadoPorId], references: [id], onDelete: Restrict)
+
+  @@index([submissaoId])
+  @@index([sha256])
+  @@index([enviadoPorId])
+  @@map("comprovantes")
+}
+
+/// Histórico IMUTÁVEL das decisões do coordenador (uma linha por decisão).
+model Avaliacao {
+  id              Int                @id @default(autoincrement())
+  submissaoId     Int                @map("submissao_id")
+  avaliadorId     Int                @map("avaliador_id")
+  resultado       ResultadoAvaliacao
+  horasAprovadas  Decimal?           @map("horas_aprovadas") @db.Decimal(6, 2)
+  permiteCorrecao Boolean            @default(false) @map("permite_correcao")
+  justificativa   String?            @db.Text
+  avaliadaEm      DateTime           @default(now()) @map("avaliada_em")
+
+  submissao Submissao @relation(fields: [submissaoId], references: [id], onDelete: Restrict)
+  avaliador Usuario   @relation(fields: [avaliadorId], references: [id], onDelete: Restrict)
+
+  @@index([submissaoId])
+  @@index([avaliadorId])
+  @@map("avaliacoes")
+}

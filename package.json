@@ -1,0 +1,34 @@
+{
+  "name": "portal-atividades-backend",
+  "version": "0.2.0",
+  "description": "API REST do Portal Web de Atividades Complementares (Node.js + Express + Prisma + MySQL)",
+  "main": "src/server.js",
+  "private": true,
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "postinstall": "prisma generate",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:seed": "node prisma/seed.js",
+    "db:demo": "node prisma/seed-demo.js",
+    "db:studio": "prisma studio",
+    "usuario:criar": "node scripts/criar-usuario.js",
+    "test": "node scripts/testar.js"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3"
+  }
+}
