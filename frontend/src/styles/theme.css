@@ -1,0 +1,56 @@
+/* Cores e estilos do AVA (Atividades Complementares - Unifor) */
+
+:root {
+  /* Cores do projeto */
+  --ac-azul: #0649ee;
+  --ac-azul-escuro: #0539bb;
+  --ac-fundo: #f8fafc;
+  --ac-texto: #1e293b;
+  --ac-texto-suave: #64748b;
+  --ac-borda: #e2e8f0;
+  --ac-raio: 8px;
+
+  /* Status */
+  --ac-aprovada: #16a34a;
+  --ac-pendente: #eab308;
+  --ac-rejeitada: #dc2626;
+
+  /* Bootstrap passa a usar as cores acima */
+  --bs-primary: var(--ac-azul);
+  --bs-primary-rgb: 6, 73, 238;
+  --bs-body-font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --bs-body-bg: var(--ac-fundo);
+  --bs-body-color: var(--ac-texto);
+  --bs-border-color: var(--ac-borda);
+  --bs-border-radius: var(--ac-raio);
+  --bs-link-color: var(--ac-azul);
+  --bs-link-color-rgb: 6, 73, 238;
+  --bs-link-hover-color: var(--ac-azul-escuro);
+  --bs-link-hover-color-rgb: 5, 57, 187;
+}
+
+/* Os botões do Bootstrap têm cores próprias, por isso são ajustados aqui */
+.btn-primary {
+  --bs-btn-bg: var(--ac-azul);
+  --bs-btn-border-color: var(--ac-azul);
+  --bs-btn-hover-bg: var(--ac-azul-escuro);
+  --bs-btn-hover-border-color: var(--ac-azul-escuro);
+  --bs-btn-active-bg: var(--ac-azul-escuro);
+  --bs-btn-active-border-color: var(--ac-azul-escuro);
+  --bs-btn-disabled-bg: var(--ac-azul);
+  --bs-btn-disabled-border-color: var(--ac-azul);
+}
+
+.btn-outline-primary {
+  --bs-btn-color: var(--ac-azul);
+  --bs-btn-border-color: var(--ac-azul);
+  --bs-btn-hover-bg: var(--ac-azul);
+  --bs-btn-hover-border-color: var(--ac-azul);
+  --bs-btn-active-bg: var(--ac-azul-escuro);
+  --bs-btn-active-border-color: var(--ac-azul-escuro);
+}
+
+.card {
+  --bs-card-border-color: var(--ac-borda);
+  --bs-card-border-radius: var(--ac-raio);
+}
