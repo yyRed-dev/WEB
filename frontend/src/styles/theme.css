@@ -29,7 +29,7 @@
   --bs-link-hover-color-rgb: 5, 57, 187;
 }
 
-/* Os botões do Bootstrap têm cores próprias, por isso são ajustados aqui */
+/* Botões */
 .btn-primary {
   --bs-btn-bg: var(--ac-azul);
   --bs-btn-border-color: var(--ac-azul);
@@ -53,4 +53,26 @@
 .card {
   --bs-card-border-color: var(--ac-borda);
   --bs-card-border-radius: var(--ac-raio);
+}
+
+/* Cabeçalho institucional */
+.header-ativo {
+  border-bottom: 3px solid #fff;
+}
+
+.header-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ac-texto);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+}
+
+.navbar .nav-link:hover {
+  opacity: 0.8;
+  cursor: pointer;
 }
