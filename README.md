@@ -1,40 +1,85 @@
 # WEB
+Portal web para os alunos acompanharem suas **horas complementares**: consultar atividades
+disponíveis, enviar certificados de atividades externas e ver o progresso em relação à carga
+horária exigida pelo curso. O coordenador avalia os certificados enviados pelos alunos do seu curso.
 
-API REST em **Node.js + Express + Prisma + MySQL** do Portal Web de Atividades Complementares.
-O frontend (React + Vite + Bootstrap) consome esta API; ele não faz parte deste repositório.
+O sistema será entregue **dentro do ambiente da Unifor**, que já faz o login dos usuários.
 
-**Etapa atual (Sprint 3):**
+Este repositório guarda as duas partes do projeto:
 
-- acesso ao banco migrado de SQL puro (mysql2) para o **Prisma**;
-- login, cadastro e senhas **removidos**: o sistema vai usar o login da Unifor;
-- **CRUD completo de atividades** e rotas GET de **categorias**, **tipos** e **cursos**;
-- **GET /progresso** com horas concluídas, pendentes, restantes e **por categoria**.
+| Parte | Pasta | Tecnologias |
+|---|---|---|
+| **Backend** (API REST) | raiz do repositório | Node.js, Express 5, Prisma 6, MySQL 8 |
+| **Frontend** | [`frontend/`](frontend/) | React 19, Vite 8, Bootstrap 5, React Router 7 |
 
-Envio de certificados (submissões) e Painel do Coordenador ficam para as próximas sprints;
-as tabelas já existem.
+## Situação atual
+
+| Parte | Pronto | Próximos passos |
+|---|---|---|
+| Backend | Banco com Prisma, CRUD de atividades, categorias/tipos/cursos, progresso de horas por categoria, 90 testes automatizados | Envio de certificados (submissões), Painel do Coordenador, integração com o login da Unifor |
+| Frontend | Projeto Vite, cabeçalho institucional, tema e as 5 rotas das telas | Construir as telas e ligá-las à API ([seção 9](#9-integração-com-o-frontend)) |
 
 ---
 
-## 1. Requisitos
+## Sumário
 
-- Node.js **20.10 ou superior** (testado com 22)
-- MySQL **8.0** ou superior
+1. [Estrutura do repositório](#1-estrutura-do-repositório)
+2. [Requisitos](#2-requisitos)
+3. [Como rodar o projeto](#3-como-rodar-o-projeto)
+4. [Identificação do usuário (no lugar do login)](#4-identificação-do-usuário-no-lugar-do-login)
+5. [Testes automatizados](#5-testes-automatizados)
+6. [Banco de dados](#6-banco-de-dados)
+7. [API](#7-api)
+8. [Organização do backend](#8-organização-do-backend)
+9. [Integração com o frontend](#9-integração-com-o-frontend)
+10. [Decisões técnicas](#10-decisões-técnicas)
+11. [Limitações e pendências](#11-limitações-e-pendências)
 
-## 2. Instalação passo a passo
+---
 
-```bash
-# 1) Instalar as dependências (isso também roda `prisma generate`)
-npm install
+## 1. Estrutura do repositório
 
-# 2) Criar o arquivo de configuração e ajustar DATABASE_URL
-cp .env.example .env
+```
+WEB/
+├── frontend/              ← aplicação React (tem package.json próprio)
+│   ├── src/
+│   │   ├── pages/         Dashboard, Activities, SubmitCertificate, MySubmissions, Coordinator
+│   │   ├── components/    layout/InstitutionalHeader.jsx
+│   │   └── styles/        theme.css
+│   ├── index.html
+│   └── vite.config.js
+│
+├── prisma/                ← BACKEND: modelo de dados, migrações e dados iniciais
+├── scripts/               ← BACKEND: criar usuários, rodar testes
+├── src/                   ← BACKEND: código da API
+├── tests/                 ← BACKEND: testes automatizados
+├── package.json           ← dependências do BACKEND
+└── .env.example           ← configuração do BACKEND
 ```
 
-### 2.1 Criar o usuário do MySQL
+São **dois projetos Node independentes**, cada um com o próprio `package.json` e o próprio
+`node_modules`. Os comandos `npm` do backend rodam na **raiz**; os do frontend, dentro de `frontend/`.
 
-No cliente MySQL (como root), crie um usuário só para o projeto. A permissão de criar bancos
-é necessária porque o Prisma usa um banco temporário ("shadow database") no `migrate dev` e
-porque `npm test` recria o banco de testes.
+## 2. Requisitos
+
+- **Node.js 22 LTS** (mínimo 20.19 ou 22.12, exigido pelo Vite 8 do frontend)
+- **MySQL 8.0** ou superior (só para o backend)
+- Git
+
+## 3. Como rodar o projeto
+
+Para desenvolver é preciso deixar **dois terminais abertos**: um com a API, outro com o frontend.
+
+### 3.1 Backend (terminal 1, na raiz)
+
+```bash
+npm install                # instala as dependências e roda `prisma generate`
+cp .env.example .env       # depois ajuste DATABASE_URL e DATABASE_URL_TEST
+```
+
+**Usuário do MySQL.** No cliente MySQL (como root), crie um usuário para o projeto. Ele precisa
+poder criar bancos, porque o Prisma usa um banco temporário ("shadow database") no `migrate dev`
+e o `npm test` recria o banco de testes:
 
 ```sql
 CREATE USER 'portal_app'@'localhost' IDENTIFIED BY 'escolha-uma-senha';
@@ -52,23 +97,42 @@ DATABASE_URL="mysql://portal_app:escolha-uma-senha@localhost:3306/portal_ativida
 DATABASE_URL_TEST="mysql://portal_app:escolha-uma-senha@localhost:3306/portal_atividades_test"
 ```
 
-### 2.2 Criar as tabelas e os dados iniciais
+**Tabelas e dados:**
 
 ```bash
-npm run db:migrate   # aplica as migrações: cria as 10 tabelas
+npm run db:migrate   # aplica as migrações e cria as 10 tabelas
                      # (se o Prisma disser que o banco não existe:
                      #  CREATE DATABASE portal_atividades CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;)
 npm run db:seed      # categorias (Ensino, Pesquisa, Extensão) e tipos de atividade
 npm run db:demo      # OPCIONAL: cursos, usuários, atividades e submissões FICTÍCIOS
 ```
 
-> **Quem já tinha o banco da Sprint 2** (criado com `npm run db:setup`): esse banco não é
-> compatível com o Prisma. Apague-o antes (`DROP DATABASE portal_atividades;`) e rode os
-> comandos acima. Os dados eram só de teste.
+**Subir a API:**
 
-O `db:demo` reproduz o dashboard das telas: o aluno `DEMOALU01` tem 125 h aprovadas de 200 h
-(Ensino 40/60, Pesquisa 35/50, Extensão 50/90), 1 pendente e 1 rejeitada aguardando correção.
-Ele se recusa a rodar com `NODE_ENV=production`.
+```bash
+npm run dev          # reinicia sozinho ao salvar um arquivo
+```
+
+Teste rápido: abra `http://localhost:3000/api/saude` → `{"status":"ok","banco":"ok"}`.
+
+Para ver e editar os dados numa interface gráfica: `npm run db:studio` (Prisma Studio).
+
+### 3.2 Frontend (terminal 2)
+
+```bash
+cd frontend
+npm install
+npm run dev          # abre em http://localhost:5173
+```
+
+A API já aceita chamadas dessa origem (`CORS_ORIGINS` no `.env` do backend).
+
+### 3.3 Dados de demonstração
+
+O `npm run db:demo` reproduz o dashboard das telas: o aluno `DEMOALU01` tem 125 h aprovadas de
+200 h (Ensino 40/60, Pesquisa 35/50, Extensão 50/90), uma submissão pendente e uma rejeitada
+aguardando correção. Todos os registros levam o prefixo `[DEMO]`, e o comando se recusa a rodar
+com `NODE_ENV=production`.
 
 | Perfil        | Matrícula   |
 |---------------|-------------|
@@ -77,18 +141,7 @@ Ele se recusa a rodar com `NODE_ENV=production`.
 | ORGANIZADOR   | `DEMOORG01` |
 | ALUNO         | `DEMOALU01` (Ciência da Computação), `DEMOALU02` (Sistemas de Informação) |
 
-### 2.3 Rodar
-
-```bash
-npm run dev     # desenvolvimento (reinicia ao salvar)
-npm start       # normal
-```
-
-Teste rápido: `http://localhost:3000/api/saude` → `{"status":"ok","banco":"ok"}`.
-
-Para ver e editar os dados numa interface gráfica: `npm run db:studio` (Prisma Studio).
-
-### 2.4 Cadastrar usuários (enquanto não há integração com a Unifor)
+### 3.4 Cadastrar usuários (enquanto não há integração com a Unifor)
 
 ```bash
 npm run usuario:criar -- --matricula ADM0001 --nome "Maria Souza" --perfil ADMINISTRADOR
@@ -98,13 +151,27 @@ npm run usuario:criar -- --matricula COO0001 --nome "Coordenação CC" --perfil 
 
 Se a matrícula já existir, o comando atualiza o perfil e o curso.
 
-## 3. Identificação do usuário (no lugar do login)
+### 3.5 Comandos do backend
 
-O portal ficará dentro do sistema da Unifor, que já faz o login. **Nossa API não tem mais
-cadastro, login nem senha.** Ainda não sabemos como a Unifor vai informar quem é o usuário,
-então toda essa lógica ficou em **um único arquivo**: `src/middlewares/identificacao.js`.
+| Comando | O que faz |
+|---|---|
+| `npm run dev` | Sobe a API e reinicia ao salvar |
+| `npm start` | Sobe a API |
+| `npm test` | Recria o banco de testes e roda os testes |
+| `npm run db:migrate` | Aplica as migrações pendentes |
+| `npm run db:migrate:dev -- --name descricao` | Gera uma nova migração depois de editar o `schema.prisma` |
+| `npm run db:seed` | Categorias e tipos de atividade |
+| `npm run db:demo` | Dados fictícios de demonstração |
+| `npm run db:studio` | Interface gráfica do banco |
+| `npm run usuario:criar` | Cria ou promove um usuário |
 
-**Por enquanto (só desenvolvimento e testes)** o usuário é identificado pelo cabeçalho HTTP:
+## 4. Identificação do usuário (no lugar do login)
+
+O portal ficará dentro do sistema da Unifor, que já faz o login. **A API não tem cadastro, login
+nem senha.** Ainda não se sabe como a Unifor vai informar quem é o usuário, então toda essa lógica
+fica em **um único arquivo**: `src/middlewares/identificacao.js`.
+
+**Por enquanto (só desenvolvimento e testes)**, o usuário é identificado pelo cabeçalho HTTP:
 
 ```
 X-Matricula: DEMOALU01
@@ -113,13 +180,16 @@ X-Matricula: DEMOALU01
 - Sem o cabeçalho, só as rotas públicas funcionam.
 - Matrícula inexistente ou usuário inativo → **401**.
 - O **perfil sempre vem do banco**, nunca da requisição.
-- Qualquer pessoa pode mandar esse cabeçalho, então ele **não é segurança**. Por isso a API
+- Qualquer pessoa pode mandar esse cabeçalho, então ele **não protege nada**. Por isso a API
   **se recusa a iniciar** com `NODE_ENV=production` e `IDENTIFICACAO_MODO=cabecalho`.
 
-**Quando a integração existir**, só `identificarUsuario` muda (ler um token ou cookie da
-Unifor e achar o usuário pela matrícula). As rotas e regras continuam iguais.
+**Quando a integração existir**, só a função `identificarUsuario` muda (ler o token ou cookie da
+Unifor e achar o usuário pela matrícula). As rotas e regras continuam iguais, e o frontend deixa
+de enviar o `X-Matricula`.
 
-## 4. Testes automatizados
+## 5. Testes automatizados
+
+Na raiz:
 
 ```bash
 npm test
@@ -127,7 +197,7 @@ npm test
 
 O comando:
 
-1. usa `DATABASE_URL_TEST` (o nome precisa terminar em `_test`);
+1. usa `DATABASE_URL_TEST` (o nome do banco precisa terminar em `_test`);
 2. **apaga e recria** esse banco com as migrações (`prisma migrate reset`);
 3. roda os testes com o executor nativo do Node (`node:test`).
 
@@ -136,66 +206,42 @@ São **90 testes em 6 arquivos**:
 | Arquivo | O que cobre |
 |---|---|
 | `calculoProgresso.test.js` | Fórmulas do progresso (unitário, sem banco) |
-| `identificacao.test.js` | Cabeçalho X-Matricula, 401/403, modo produção, rotas antigas removidas |
+| `identificacao.test.js` | Cabeçalho X-Matricula, 401/403, modo produção, rotas de login removidas |
 | `catalogo.test.js` | GET de categorias, tipos e cursos |
 | `atividades.test.js` | Criar, listar com filtros, detalhar, editar e cancelar; permissões e validações |
 | `progresso.test.js` | Horas concluídas, pendentes, restantes e por categoria; quem vê o quê |
 | `banco.test.js` | UNIQUE, chaves estrangeiras e restrições CHECK do próprio MySQL |
 
-## 5. Estrutura de pastas
-
-```
-prisma/
-  schema.prisma          modelo de dados (fonte da verdade do banco)
-  migrations/            SQL aplicado pelo Prisma (inclui as restrições CHECK)
-  seed.js                categorias e tipos (obrigatório)
-  seed-demo.js           dados fictícios (opcional)
-scripts/
-  criar-usuario.js       cria/promove usuários pela linha de comando
-  testar.js              prepara o banco de testes e roda os testes
-src/
-  server.js              ponto de entrada (conecta no banco e abre a porta)
-  app.js                 Express: CORS, JSON, rotas, erros
-  config/                env.js (lê o .env), prisma.js (cliente único), perfis.js
-  routes/index.js        mapa URL → controller (+ identificação e permissões)
-  controllers/           lê a requisição e monta a resposta
-  services/              regras de negócio e consultas Prisma
-    calculoProgresso.js  fórmulas do progresso (função pura, sem banco)
-  middlewares/           identificacao.js (quem é o usuário), erros.js
-  utils/                 AppError, validações, conversões numéricas
-tests/                   testes automatizados
-```
-
-Fluxo de uma requisição: `rota → identificação → permissão → controller → service → Prisma → MySQL`.
-
-Com o Prisma, a antiga pasta `repositories/` deixou de ser necessária: o Prisma já é a camada de
-acesso a dados e os services chamam o Prisma direto.
+O frontend ainda não tem testes automatizados.
 
 ## 6. Banco de dados
 
-10 tabelas (veja `prisma/schema.prisma`, todo comentado):
+O modelo está em `prisma/schema.prisma`, comentado campo a campo. São 10 tabelas:
 
 | Tabela | Para quê |
 |---|---|
 | `cursos` | Curso e carga horária mínima |
-| `curso_categoria_metas` | **Nova.** Meta visual de horas por categoria em cada curso (ex.: Ensino 60 h) |
-| `usuarios` | Todos os perfis numa tabela. **Sem senha.** `curso_id` = curso do aluno ou curso que o coordenador coordena |
-| `categorias` | **Ensino, Pesquisa, Extensão** (antes eram 6 categorias misturadas) |
-| `tipos_atividade` | **Nova.** Evento, Minicurso, Workshop, Curso, Estágio, Monitoria, Projeto, Voluntariado, Publicação, Visita técnica, Outro |
-| `atividades` | Catálogo. Ganhou `tipo_id` e `imagem_url` (imagem do card) |
+| `curso_categoria_metas` | Meta visual de horas por categoria em cada curso (ex.: Ensino 60 h) |
+| `usuarios` | Todos os perfis numa tabela, **sem senha**. `curso_id` = curso do aluno ou curso que o coordenador coordena |
+| `categorias` | Ensino, Pesquisa, Extensão |
+| `tipos_atividade` | Evento, Minicurso, Workshop, Curso, Estágio, Monitoria, Projeto, Voluntariado, Publicação, Visita técnica, Outro |
+| `atividades` | Catálogo de atividades (com `imagem_url` para o card) |
 | `atividade_cursos` | Cursos para os quais a atividade é recomendada |
 | `submissoes` | Pedidos de validação de horas (`atividade_id` vazio = atividade externa) |
-| `comprovantes` | Arquivos enviados |
+| `comprovantes` | Arquivos de certificado enviados |
 | `avaliacoes` | Histórico das decisões do coordenador |
 
-A tabela `sessoes` foi removida junto com o login.
+O próprio MySQL garante as regras críticas (restrições CHECK na migração):
+- submissão APROVADA precisa de horas aprovadas;
+- horas aprovadas ≤ horas solicitadas;
+- submissão REJEITADA precisa de justificativa;
+- horas e cargas horárias > 0;
+- data de término ≥ data de início.
 
-Regras garantidas pelo próprio MySQL (CHECK, na migração): submissão APROVADA precisa de horas
-aprovadas, horas aprovadas ≤ solicitadas, REJEITADA precisa de justificativa, horas e cargas > 0,
-término ≥ início. Registros usados no histórico não podem ser apagados: as chaves estrangeiras usam RESTRICT.
+Registros usados no histórico não podem ser apagados (chaves estrangeiras com RESTRICT).
 
-**Mudar o banco depois:** edite `schema.prisma` e rode `npm run db:migrate:dev -- --name descricao`.
-O Prisma gera a nova migração e as restrições CHECK existentes continuam no banco.
+**Para mudar o banco:** edite `schema.prisma` e rode `npm run db:migrate:dev -- --name descricao`.
+O Prisma gera a nova migração, e as restrições CHECK existentes continuam no banco.
 
 ## 7. API
 
@@ -222,7 +268,7 @@ Todos opcionais, na query string:
 
 | Parâmetro | Exemplo | Efeito |
 |---|---|---|
-| `busca` | `workshop` | Título, descrição, categoria ou tipo (sem diferenciar maiúsculas/acentos) |
+| `busca` | `workshop` | Título, descrição, categoria ou tipo (sem diferenciar maiúsculas e acentos) |
 | `categoriaId`, `tipoId` | `2` | Botões Ensino/Pesquisa/Extensão e Eventos/Minicursos/Workshops |
 | `modalidade` | `ONLINE` | `PRESENCIAL`, `ONLINE` ou `HIBRIDA` |
 | `de`, `ate` | `2026-11-01` | Período da data de início (AAAA-MM-DD, horário de Fortaleza) |
@@ -272,8 +318,6 @@ Por padrão, a lista vem da atividade mais próxima para a mais distante. Respos
 - `situacao`: `FUTURA`, `EM_ANDAMENTO`, `ENCERRADA` ou `CANCELADA`, calculada na hora.
 - `recomendadaParaVoce`: `true`/`false` quando quem consulta tem curso; `null` sem identificação.
   Serve para **destacar**: as demais atividades continuam aparecendo.
-- O card mostra **Data** e **Horário** separados: o React formata `dataInicio` no fuso local
-  (ex.: `new Date(dataInicio).toLocaleString('pt-BR', { timeZone: 'America/Fortaleza' })`).
 
 ### 7.2 POST /atividades e PATCH /atividades/:id
 
@@ -313,7 +357,7 @@ No **PATCH** só os campos enviados mudam. Mande `null` para limpar um campo opc
 ### 7.3 DELETE /atividades/:id — cancelar
 
 Corpo opcional: `{ "motivo": "Palestrante indisponível" }`. A atividade fica com
-`status: "CANCELADA"`, sai do catálogo padrão, mas continua consultável e ligada às submissões.
+`status: "CANCELADA"` e sai do catálogo padrão, mas continua consultável e ligada às submissões.
 Cancelar de novo dá **409**.
 
 ### 7.4 GET /progresso
@@ -341,13 +385,13 @@ Cancelar de novo dá **409**.
 - pendentes = soma das horas **solicitadas** das submissões PENDENTES;
 - restantes = máximo(0, mínima − concluídas), **nunca negativo**;
 - percentual = mínimo(100, concluídas ÷ mínima × 100), com 1 casa decimal, **nunca passa de 100**;
-- por categoria: as mesmas somas por Ensino/Pesquisa/Extensão.
+- por categoria: as mesmas somas, separadas em Ensino, Pesquisa e Extensão.
 
-A **meta por categoria é só visual** (decisão do grupo): ela não limita as horas que contam nem
-impede a conclusão. Curso sem meta cadastrada → `meta: null`.
+A **meta por categoria é só visual**: ela não limita as horas que contam nem impede a conclusão.
+Curso sem meta cadastrada → `meta: null`.
 
-Nada disso é gravado no banco: é recalculado a cada consulta. Se a carga mínima do curso mudar, o
-progresso muda na hora, sem alterar as horas aprovadas.
+Nada disso é gravado no banco: tudo é recalculado a cada consulta. Se a carga mínima do curso
+mudar, o progresso muda na hora, sem alterar as horas aprovadas.
 
 ### 7.5 Formato de erro
 
@@ -365,61 +409,119 @@ progresso muda na hora, sem alterar as horas aprovadas.
 | 409 | Conflito (já cancelada, duplicado, aluno sem curso) |
 | 500 | Erro inesperado (mensagem genérica; o detalhe fica só no log do servidor) |
 
-## 8. Como o React deve usar
+## 8. Organização do backend
+
+```
+prisma/
+  schema.prisma          modelo de dados (fonte da verdade do banco)
+  migrations/            SQL aplicado pelo Prisma (inclui as restrições CHECK)
+  seed.js                categorias e tipos (obrigatório)
+  seed-demo.js           dados fictícios (opcional)
+scripts/
+  criar-usuario.js       cria/promove usuários pela linha de comando
+  testar.js              prepara o banco de testes e roda os testes
+src/
+  server.js              ponto de entrada (conecta no banco e abre a porta)
+  app.js                 Express: CORS, JSON, rotas, erros
+  config/                env.js (lê o .env), prisma.js (cliente único), perfis.js
+  routes/index.js        mapa URL → controller (+ identificação e permissões)
+  controllers/           lê a requisição e monta a resposta
+  services/              regras de negócio e consultas Prisma
+    calculoProgresso.js  fórmulas do progresso (função pura, sem banco)
+  middlewares/           identificacao.js (quem é o usuário), erros.js
+  utils/                 AppError, validações, conversões numéricas
+tests/                   testes automatizados
+```
+
+Fluxo de uma requisição: `rota → identificação → permissão → controller → service → Prisma → MySQL`.
+
+## 9. Integração com o frontend
+
+### 9.1 Qual tela usa qual rota
+
+| Tela (rota do React) | Página | Endpoints da API |
+|---|---|---|
+| Dashboard — `/atividades-complementares/dashboard` | `Dashboard.jsx` | `GET /usuarios/me`, `GET /progresso`, `GET /atividades?compativeis=true&porPagina=3` |
+| Atividades Disponíveis — `/atividades-complementares/atividades` | `Activities.jsx` | `GET /atividades` (filtros), `GET /categorias`, `GET /tipos-atividade`, `GET /atividades/:id` |
+| Enviar Certificado — `/atividades-complementares/certificados/enviar` | `SubmitCertificate.jsx` | `GET /categorias`, `GET /atividades?situacao=todas` · envio: **a fazer** |
+| Minhas Submissões — `/atividades-complementares/submissoes` | `MySubmissions.jsx` | **a fazer** (próxima sprint do backend) |
+| Painel do Coordenador — `/atividades-complementares/coordenador` | `Coordinator.jsx` | `GET /progresso/:matricula` · lista e avaliação: **a fazer** |
+
+### 9.2 Chamando a API
+
+Sugestão de um arquivo único para as chamadas, por exemplo `frontend/src/services/api.js`:
 
 ```js
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api';
-// Provisório: matrícula escolhida numa tela de "trocar usuário" de desenvolvimento.
-const matricula = localStorage.getItem('matriculaDev');
 
 export async function api(caminho, opcoes = {}) {
-  const r = await fetch(`${API}${caminho}`, {
+  // Provisório (só desenvolvimento): matrícula do usuário de teste.
+  // Some quando a integração com o login da Unifor existir.
+  const matricula = localStorage.getItem('matriculaDev') ?? 'DEMOALU01';
+
+  const resposta = await fetch(`${API}${caminho}`, {
     ...opcoes,
     headers: {
       'Content-Type': 'application/json',
-      ...(matricula ? { 'X-Matricula': matricula } : {}),
+      'X-Matricula': matricula,
       ...opcoes.headers,
     },
   });
-  const dados = r.status === 204 ? null : await r.json();
-  if (!r.ok) throw dados.erro; // { codigo, mensagem, detalhes }
+  const dados = resposta.status === 204 ? null : await resposta.json();
+  if (!resposta.ok) throw dados.erro; // { codigo, mensagem, detalhes }
   return dados;
 }
 
-// Dashboard
-const progresso = await api('/progresso');
-// Atividades Disponíveis: botão "Extensão" + busca
-const { atividades } = await api(`/atividades?categoriaId=3&busca=${encodeURIComponent(texto)}`);
+// Exemplos
+// const progresso = await api('/progresso');
+// const { atividades } = await api(`/atividades?categoriaId=3&busca=${encodeURIComponent(texto)}`);
 ```
 
-- A origem do Vite (`http://localhost:5173`) já está liberada em `CORS_ORIGINS`.
-- Os botões Ensino/Pesquisa/Extensão usam `GET /categorias`; Eventos/Minicursos/Workshops usam `GET /tipos-atividade`.
-- Para mostrar o menu certo (ex.: "Painel do Coordenador"), use `usuario.perfil` de `GET /usuarios/me`.
-  Isso é só conveniência: **a API confere o perfil em toda operação**.
+Para apontar o frontend para outro endereço da API, crie `frontend/.env.local` (não vai para o Git):
 
-## 9. Decisões técnicas desta etapa
+```
+VITE_API_URL=http://localhost:3000/api
+```
+
+### 9.3 Dicas
+
+- **Datas:** a API devolve tudo em UTC. Para mostrar Data e Horário separados nos cards:
+  `new Date(a.dataInicio).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' })` e
+  `toLocaleTimeString('pt-BR', { timeZone: 'America/Fortaleza', hour: '2-digit', minute: '2-digit' })`.
+- **Filtros da tela de atividades:** os botões Ensino/Pesquisa/Extensão vêm de `GET /categorias`;
+  Eventos/Minicursos/Workshops vêm de `GET /tipos-atividade`. Não fixe os ids no código.
+- **Menu por perfil:** use `usuario.perfil` de `GET /usuarios/me` para mostrar ou esconder o
+  "Painel do Coordenador". Isso é só conveniência: a API confere o perfil em toda operação.
+- **Erros de formulário:** `erro.detalhes.campos` traz a mensagem de cada campo, pronta para
+  mostrar embaixo do input.
+- **Trocar de usuário em testes:** `localStorage.setItem('matriculaDev', 'DEMOCOO01')` no console
+  do navegador e recarregue a página.
+
+## 10. Decisões técnicas
 
 | Decisão | Por quê |
 |---|---|
-| **Prisma 6** (não o 7) | O Prisma 7 exige TypeScript/ES Modules e configuração extra. O 6 funciona direto com o `require` (CommonJS) que o projeto já usa. Dá para migrar depois. |
-| **Migração inicial escrita à mão + CHECK** | O Prisma não representa CHECK no schema. A migração cria exatamente o que o `schema.prisma` descreve e acrescenta as restrições CHECK, que o Prisma mantém nas migrações seguintes. |
-| **Login removido; identificação em um só arquivo** | O sistema usa o login da Unifor. Enquanto a integração não existe, o cabeçalho `X-Matricula` permite testar, e é proibido em produção. |
-| **AVALIADOR virou COORDENADOR** | Mesmo nome das telas ("Painel do Coordenador"). |
-| **Coordenador ligado a um curso** | A tela diz "estudantes do seu curso": o coordenador só vê o progresso dos alunos do curso dele. |
+| **Backend e frontend no mesmo repositório** | Projeto pequeno e mesma equipe: uma alteração que mexe nos dois lados vai num único Pull Request. Cada parte mantém o próprio `package.json`. |
+| **Prisma 6** (não o 7) | O Prisma 7 exige TypeScript/ES Modules e configuração extra. O 6 funciona direto com o `require` (CommonJS) do backend. Dá para migrar depois. |
+| **Migração inicial com restrições CHECK** | O Prisma não representa CHECK no schema. A migração cria o que o `schema.prisma` descreve e acrescenta as restrições, que o Prisma mantém nas migrações seguintes. |
+| **Sem login próprio; identificação em um só arquivo** | O sistema usa o login da Unifor. Até a integração, o cabeçalho `X-Matricula` permite testar, e ele é proibido em produção. |
+| **Perfil COORDENADOR ligado a um curso** | A tela diz "estudantes do seu curso": o coordenador só vê o progresso dos alunos do curso dele. |
 | **Categoria ≠ tipo** | Categoria (Ensino, Pesquisa, Extensão) define as horas por categoria; tipo (Evento, Workshop...) serve para filtrar. |
 | **Metas por categoria só visuais** | Decisão do grupo. Ficam numa tabela própria por curso, para a coordenação ajustar. |
 | **DELETE = cancelar** | Mantém o histórico e as submissões ligadas à atividade. |
-| **Organizador só altera as próprias atividades** | Administrador altera qualquer uma. Coordenador não cria atividades (para liberar, basta incluir `COORDENADOR` em `PODEM_GERENCIAR_ATIVIDADES`, em `src/config/perfis.js`). |
+| **Organizador só altera as próprias atividades** | Administrador altera qualquer uma. Coordenador não cria atividades; para liberar, inclua `COORDENADOR` em `PODEM_GERENCIAR_ATIVIDADES`, em `src/config/perfis.js`. |
 | **Decimal convertido para número** | O Prisma devolve `Decimal` como texto no JSON (`"4.00"`). A API converte para número (`4`) e soma em centésimos para não acumular erro de arredondamento. |
 | **Datas sem fuso = Fortaleza** | Evita que "14:00" digitado no formulário vire 11:00. Configurável em `FUSO_HORARIO`. |
 
-## 10. Limitações e pendências
+## 11. Limitações e pendências
 
-- **Integração com o login da Unifor:** não existe ainda. A API não deve ir para produção até
+- **Login da Unifor:** a integração ainda não existe. O sistema não deve ir para produção até
   `src/middlewares/identificacao.js` ler a identidade real.
 - **Usuários:** também virão da base da Unifor. Por enquanto são criados com `npm run usuario:criar`.
-- **Imagem da atividade:** é só um endereço (`imagemUrl`). Ainda não há upload de imagem.
+- **Envio de certificados, Minhas Submissões e Painel do Coordenador:** as tabelas existem, mas as
+  rotas da API são da próxima sprint.
 - **Status "Em análise"**, que aparece no Painel do Coordenador, ainda não existe. Hoje os status
-  são PENDENTE, APROVADA e REJEITADA; ele entra quando as rotas do painel forem feitas.
+  são PENDENTE, APROVADA e REJEITADA.
+- **Imagem da atividade:** é só um endereço (`imagemUrl`). Ainda não há upload de imagem.
 - **Gestão de categorias, tipos, cursos e metas** pela API ainda não foi feita (só leitura).
   Por enquanto, use `npm run db:studio`.
