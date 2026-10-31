@@ -1,20 +1,10 @@
-import { NavLink } from 'react-router-dom'
+import ComplementaryActivitiesDropdown from './ComplementaryActivitiesDropdown.jsx'
 
-// NavLink adiciona a classe "active" no link da página atual
 function InstitutionalHeader({ usuario, onSair }) {
   return (
     <nav className="navbar navbar-dark bg-primary">
       <div className="container">
-        <div className="d-flex flex-wrap gap-3">
-          <NavLink className="nav-link text-white" to="/atividades-complementares/dashboard">Dashboard</NavLink>
-          <NavLink className="nav-link text-white" to="/atividades-complementares/atividades">Atividades</NavLink>
-          <NavLink className="nav-link text-white" to="/atividades-complementares/certificados/enviar">Enviar Certificado</NavLink>
-          <NavLink className="nav-link text-white" to="/atividades-complementares/submissoes">Minhas Submissões</NavLink>
-          {/* Link do painel só aparece para coordenador */}
-          {usuario.perfil === 'COORDENADOR' && (
-            <NavLink className="nav-link text-white" to="/atividades-complementares/coordenador">Coordenador</NavLink>
-          )}
-        </div>
+        <ComplementaryActivitiesDropdown perfil={usuario.perfil} />
 
         <div className="d-flex align-items-center gap-3 text-white">
           <span><i className="bi bi-person-circle"></i> {usuario.nome}</span>

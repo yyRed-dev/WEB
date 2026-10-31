@@ -1,5 +1,5 @@
 // Login e cadastro SIMULADOS no front.
-// Quando o back tiver as rotas, troque o corpo de login() e cadastrar()
+// Quando o back tiver as rotas, trocar o corpo de login() e cadastrar()
 // por chamadas fetch à API. As telas não precisam mudar.
 
 const CHAVE_SESSAO = 'usuarioLogado'
