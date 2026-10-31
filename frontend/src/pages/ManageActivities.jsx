@@ -64,9 +64,10 @@ function ManageActivities() {
   const [mensagem, setMensagem] = useState('')
   const [salvando, setSalvando] = useState(false)
 
-  // Busca atividades, categorias e tipos quando a tela abre
+  // Busca atividades, categorias e tipos quando a tela abre.
+  // minhas=true: o coordenador só vê (e edita) as atividades que ele criou
   useEffect(() => {
-    Promise.all([apiGet('/atividades?porPagina=100'), apiGet('/categorias'), apiGet('/tipos-atividade')])
+    Promise.all([apiGet('/atividades?porPagina=100&minhas=true'), apiGet('/categorias'), apiGet('/tipos-atividade')])
       .then(([respAtividades, respCategorias, respTipos]) => {
         setAtividades(respAtividades.atividades.map(daApi))
         setCategorias(respCategorias.categorias)
@@ -194,7 +195,10 @@ function ManageActivities() {
   return (
     <>
       <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
-        <h2 className="mb-0">Gerenciar Atividades</h2>
+        <div>
+          <h2 className="mb-1">Gerenciar Atividades</h2>
+          <p className="text-muted mb-0">Atividades cadastradas por você.</p>
+        </div>
         {!mostrarForm && (
           <button type="button" className="btn btn-primary" onClick={abrirNova}>
             <i className="bi bi-plus-lg"></i> Nova atividade
@@ -264,7 +268,7 @@ function ManageActivities() {
       )}
 
       {atividades.length === 0 ? (
-        <p className="text-muted">Nenhuma atividade cadastrada.</p>
+        <p className="text-muted">Você ainda não cadastrou nenhuma atividade.</p>
       ) : (
         <div className="table-responsive">
           <table className="table table-hover bg-white align-middle">
