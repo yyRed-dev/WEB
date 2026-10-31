@@ -13,6 +13,7 @@ function App() {
       <InstitutionalHeader />
       <div className="container py-4">
         <h1 className="text-primary">Atividades Complementares</h1>
+        {/* Mostra só a página que combina com a URL atual */}
         <Routes>
           <Route path="/" element={<Navigate to="/atividades-complementares/dashboard" replace />} />
           <Route path="/atividades-complementares/dashboard" element={<Dashboard />} />
@@ -20,6 +21,7 @@ function App() {
           <Route path="/atividades-complementares/certificados/enviar" element={<SubmitCertificate />} />
           <Route path="/atividades-complementares/submissoes" element={<MySubmissions />} />
           <Route path="/atividades-complementares/coordenador" element={<Coordinator />} />
+          {/* Qualquer endereço desconhecido */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </div>

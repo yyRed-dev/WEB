@@ -76,3 +76,9 @@
   opacity: 0.8;
   cursor: pointer;
 }
+
+/* Link da página atual no cabeçalho */
+.navbar .nav-link.active {
+  font-weight: 600;
+  border-bottom: 2px solid #fff;
+}
