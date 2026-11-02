@@ -7,13 +7,10 @@ const { calcularProgresso } = require('./calculoProgresso');
 
 /**
  * Quem pode ver o progresso de quem:
- *   ALUNO          -> só o próprio
- *   COORDENADOR    -> alunos do curso que coordena (curso_id do coordenador)
- *   ADMINISTRADOR  -> qualquer aluno
- *   ORGANIZADOR    -> ninguém
+ *   ALUNO        -> só o próprio
+ *   COORDENADOR  -> alunos do curso que coordena (curso_id do coordenador)
  */
 function verificarAcesso(solicitante, aluno) {
-  if (solicitante.perfil === PERFIS.ADMINISTRADOR) return;
   if (solicitante.perfil === PERFIS.ALUNO && solicitante.id === aluno.id) return;
   if (solicitante.perfil === PERFIS.COORDENADOR && solicitante.curso && solicitante.curso.id === aluno.cursoId) return;
   throw new AppError(403, 'ACESSO_NEGADO', 'Você não tem permissão para ver o progresso deste aluno.');
@@ -82,7 +79,7 @@ async function meuProgresso(usuario) {
   return progressoDoAluno(usuario.id);
 }
 
-/** GET /progresso/:matricula — aluno (o próprio), coordenador ou administrador. */
+/** GET /progresso/:matricula — o próprio aluno, ou coordenador do curso do aluno. */
 async function progressoPorMatricula(matriculaBruta, solicitante) {
   const { matricula } = v.validar({ matricula: v.matricula(matriculaBruta) });
   const aluno = await prisma.usuario.findUnique({ where: { matricula } });
@@ -97,4 +94,4 @@ async function progressoPorMatricula(matriculaBruta, solicitante) {
   return progressoDoAluno(aluno.id);
 }
 
-module.exports = { meuProgresso, progressoPorMatricula };
+module.exports = { meuProgresso, progressoPorMatricula, progressoDoAluno };

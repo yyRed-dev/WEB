@@ -35,6 +35,28 @@ function matricula(valor) {
   return { valor: limpa };
 }
 
+function email(valor, { obrigatorio = false } = {}) {
+  if (vazio(valor)) return obrigatorio ? { erro: 'E-mail é obrigatório.' } : { valor: null };
+  if (typeof valor !== 'string') return { erro: 'E-mail inválido.' };
+  const limpo = valor.trim().toLowerCase();
+  if (limpo.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpo)) return { erro: 'E-mail inválido.' };
+  return { valor: limpo };
+}
+
+const SENHA_MIN = 8;
+const SENHA_MAX_BYTES = 72; // o bcrypt ignora o que passa de 72 bytes, então recusamos
+
+/** Senha nova: 8+ caracteres, com pelo menos uma letra e um número. */
+function senhaNova(valor) {
+  if (typeof valor !== 'string' || valor === '') return { erro: 'Senha é obrigatória.' };
+  if (valor.length < SENHA_MIN) return { erro: `A senha deve ter pelo menos ${SENHA_MIN} caracteres.` };
+  if (Buffer.byteLength(valor, 'utf8') > SENHA_MAX_BYTES) return { erro: 'Senha muito longa (máximo de 72 bytes).' };
+  if (!/[A-Za-zÀ-ÿ]/.test(valor) || !/[0-9]/.test(valor)) {
+    return { erro: 'A senha deve conter pelo menos uma letra e um número.' };
+  }
+  return { valor };
+}
+
 /** Aceita número ou texto numérico ("12"), útil para parâmetros de URL. */
 function idPositivo(valor, nomeCampo, { obrigatorio = true } = {}) {
   if (vazio(valor)) return obrigatorio ? { erro: `${nomeCampo} é obrigatório.` } : { valor: null };
@@ -154,14 +176,22 @@ function validar(resultados) {
     else dados[campo] = r.valor;
   }
   if (Object.keys(campos).length > 0) {
-    throw new AppError(400, 'DADOS_INVALIDOS', 'Verifique os dados enviados.', { campos });
+    throw new AppError(400, 'DADOS_INVALIDOS', mensagemDosCampos(campos), { campos });
   }
   return dados;
 }
 
+/**
+ * A `mensagem` do erro já traz o problema de cada campo, para telas que mostram
+ * só a mensagem. `detalhes.campos` continua trazendo o erro campo a campo.
+ */
+function mensagemDosCampos(campos) {
+  return Object.values(campos).join(' ');
+}
+
 /** Lança 400 com um único campo (para regras que dependem de vários campos). */
 function erroDeCampo(campo, mensagem) {
-  return new AppError(400, 'DADOS_INVALIDOS', 'Verifique os dados enviados.', { campos: { [campo]: mensagem } });
+  return new AppError(400, 'DADOS_INVALIDOS', mensagem, { campos: { [campo]: mensagem } });
 }
 
 /** Garante que o corpo é um objeto JSON (e não lista, texto, vazio...). */
@@ -173,6 +203,6 @@ function exigirObjeto(corpo) {
 }
 
 module.exports = {
-  texto, textoLongo, matricula, idPositivo, inteiro, horas, url, opcao, dataHora, dataDia,
+  texto, textoLongo, matricula, email, senhaNova, idPositivo, inteiro, horas, url, opcao, dataHora, dataDia,
   booleano, listaIds, validar, erroDeCampo, exigirObjeto,
 };

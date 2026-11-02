@@ -17,6 +17,12 @@ describe('Dados iniciais', () => {
 });
 
 describe('UNIQUE e chaves estrangeiras', () => {
+  it('só existem os perfis ALUNO e COORDENADOR', async () => {
+    for (const perfil of ['ADMINISTRADOR', 'ORGANIZADOR']) {
+      await assert.rejects(h.prisma.usuario.create({ data: { matricula: `X${perfil.slice(0, 5)}`, nome: 'Perfil antigo', perfil } }));
+    }
+  });
+
   it('matrícula duplicada é recusada (P2002)', async () => {
     await assert.rejects(
       h.prisma.usuario.create({ data: { matricula: 'ALUA1', nome: 'Outro' } }),

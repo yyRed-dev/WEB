@@ -28,13 +28,13 @@ datasource db {
 // Enums
 // ---------------------------------------------------------------------
 
-/// Perfis do sistema. COORDENADOR é quem avalia as submissões dos alunos
-/// do curso que coordena (o "Painel do Coordenador" das telas).
+/// O sistema tem APENAS dois perfis:
+///   ALUNO       -> envia certificados e acompanha o próprio progresso
+///   COORDENADOR -> avalia as submissões dos alunos do curso que coordena
+///                  e cadastra/edita/cancela atividades do catálogo
 enum Perfil {
   ALUNO
-  ORGANIZADOR
   COORDENADOR
-  ADMINISTRADOR
 }
 
 enum Modalidade {
@@ -99,14 +99,16 @@ model MetaCategoriaCurso {
 // Usuários
 // ---------------------------------------------------------------------
 
-/// Tabela única para todos os perfis. Não há senha: a autenticação será
-/// feita pelo sistema da Unifor. A matrícula identifica o usuário.
+/// Tabela única para os dois perfis. A matrícula (a mesma da Unifor) identifica o usuário.
 /// curso_id: curso do ALUNO, ou curso que o COORDENADOR coordena.
+/// senha_hash: usado pelo LOGIN DE TESTE do portal (hash bcrypt, nunca a senha).
+/// Fica vazio para contas sem login próprio (ex.: futura integração com a Unifor).
 model Usuario {
   id           Int      @id @default(autoincrement())
   matricula    String   @unique @db.VarChar(20)
   nome         String   @db.VarChar(150)
   email        String?  @unique @db.VarChar(254)
+  senhaHash    String?  @map("senha_hash") @db.VarChar(100)
   perfil       Perfil   @default(ALUNO)
   cursoId      Int?     @map("curso_id")
   ativo        Boolean  @default(true)
@@ -123,6 +125,7 @@ model Usuario {
   @@index([cursoId])
   @@map("usuarios")
 }
+
 
 // ---------------------------------------------------------------------
 // Categorias e tipos
@@ -163,7 +166,8 @@ model TipoAtividade {
 // Atividades (catálogo)
 // ---------------------------------------------------------------------
 
-/// Atividade publicada no catálogo. O portal não faz inscrição:
+/// Atividade publicada no catálogo. `organizador` = coordenador que a cadastrou.
+/// O portal não faz inscrição:
 /// inscricaoInfo/link/contato dizem ao aluno como se inscrever.
 model Atividade {
   id                 Int             @id @default(autoincrement())
@@ -232,7 +236,7 @@ model Submissao {
   titulo           String          @db.VarChar(200)
   instituicao      String?         @db.VarChar(200)
   descricao        String?         @db.Text
-  dataInicio       DateTime        @map("data_inicio") @db.Date
+  dataInicio       DateTime?       @map("data_inicio") @db.Date
   dataFim          DateTime?       @map("data_fim") @db.Date
   horasSolicitadas Decimal         @map("horas_solicitadas") @db.Decimal(6, 2)
   horasAprovadas   Decimal?        @map("horas_aprovadas") @db.Decimal(6, 2)
@@ -240,6 +244,7 @@ model Submissao {
   permiteCorrecao  Boolean         @default(false) @map("permite_correcao")
   justificativa    String?         @db.Text
   avaliadorId      Int?            @map("avaliador_id")
+  alertaDuplicidade String?        @map("alerta_duplicidade") @db.VarChar(255)
   enviadaEm        DateTime        @default(now()) @map("enviada_em")
   avaliadaEm       DateTime?       @map("avaliada_em")
   atualizadaEm     DateTime        @updatedAt @map("atualizada_em")

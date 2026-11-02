@@ -14,23 +14,23 @@ describe('GET /api/categorias', () => {
     assert.ok(r.body.categorias.every((c) => c.ativa === true && typeof c.id === 'number'));
   });
 
-  it('esconde categoria inativa; administrador pode pedir as inativas', async () => {
+  it('esconde categoria inativa; coordenador pode pedir as inativas', async () => {
     const antiga = await h.prisma.categoria.create({ data: { nome: 'Categoria Antiga', ativa: false } });
     const publica = await h.api('GET', '/categorias');
     assert.ok(!publica.body.categorias.some((c) => c.id === antiga.id));
 
-    const admin = await h.api('GET', '/categorias?incluirInativas=true', { como: 'ADM1' });
-    assert.equal(admin.status, 200);
-    assert.ok(admin.body.categorias.some((c) => c.id === antiga.id && c.ativa === false));
+    const coord = await h.api('GET', '/categorias?incluirInativas=true', { como: 'COOA' });
+    assert.equal(coord.status, 200);
+    assert.ok(coord.body.categorias.some((c) => c.id === antiga.id && c.ativa === false));
   });
 
-  it('incluirInativas por quem não é administrador: 403', async () => {
+  it('incluirInativas por quem não é coordenador: 403', async () => {
     assert.equal((await h.api('GET', '/categorias?incluirInativas=true', { como: 'ALUA1' })).status, 403);
     assert.equal((await h.api('GET', '/categorias?incluirInativas=true')).status, 403);
   });
 
   it('parâmetro inválido: 400', async () => {
-    assert.equal((await h.api('GET', '/categorias?incluirInativas=talvez', { como: 'ADM1' })).status, 400);
+    assert.equal((await h.api('GET', '/categorias?incluirInativas=talvez', { como: 'COOA' })).status, 400);
   });
 });
 

@@ -89,7 +89,7 @@ describe('GET /api/progresso (aluno identificado)', () => {
 
   it('sem identificação: 401; perfis que não são aluno: 403', async () => {
     assert.equal((await h.api('GET', '/progresso')).status, 401);
-    for (const como of ['ORG1', 'COOA', 'ADM1']) {
+    for (const como of ['COOA', 'COOB']) {
       assert.equal((await h.api('GET', '/progresso', { como })).status, 403, como);
     }
   });
@@ -110,14 +110,13 @@ describe('GET /api/progresso/:matricula', () => {
     assert.equal((await h.api('GET', '/progresso/ALUB1', { como: 'COOB' })).status, 200);
   });
 
-  it('administrador vê qualquer aluno; 404 para quem não existe ou não é aluno', async () => {
-    assert.equal((await h.api('GET', '/progresso/ALUB1', { como: 'ADM1' })).status, 200);
-    assert.equal((await h.api('GET', '/progresso/NAOEXISTE', { como: 'ADM1' })).status, 404);
-    assert.equal((await h.api('GET', '/progresso/ORG1', { como: 'ADM1' })).status, 404);
+  it('coordenador sem curso não vê ninguém; 404 para quem não existe ou não é aluno', async () => {
+    assert.equal((await h.api('GET', '/progresso/ALUA1', { como: 'COOSEM' })).status, 403);
+    assert.equal((await h.api('GET', '/progresso/NAOEXISTE', { como: 'COOA' })).status, 404);
+    assert.equal((await h.api('GET', '/progresso/COOB', { como: 'COOA' })).status, 404);
   });
 
-  it('organizador não acessa; matrícula com formato inválido: 400', async () => {
-    assert.equal((await h.api('GET', '/progresso/ALUA1', { como: 'ORG1' })).status, 403);
-    assert.equal((await h.api('GET', `/progresso/${encodeURIComponent('a b')}`, { como: 'ADM1' })).status, 400);
+  it('matrícula com formato inválido: 400', async () => {
+    assert.equal((await h.api('GET', `/progresso/${encodeURIComponent('a b')}`, { como: 'COOA' })).status, 400);
   });
 });

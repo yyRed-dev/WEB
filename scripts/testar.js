@@ -25,7 +25,15 @@ if (!nomeBanco.endsWith('_test')) {
   process.exit(1);
 }
 
-const env = { ...process.env, DATABASE_URL: url, NODE_ENV: 'test', IDENTIFICACAO_MODO: 'cabecalho' };
+const env = {
+  ...process.env,
+  DATABASE_URL: url,
+  NODE_ENV: 'test',
+  IDENTIFICACAO_MODO: 'cabecalho',
+  BCRYPT_ROUNDS: '4', // hash rápido só nos testes
+  ARQUIVO_TAMANHO_MAXIMO_MB: '1', // facilita testar o limite de tamanho
+  UPLOADS_DIR: path.join(require('node:os').tmpdir(), `portal-testes-uploads-${process.pid}`),
+};
 const raiz = path.join(__dirname, '..');
 const executar = (comando, args) => spawnSync(comando, args, { cwd: raiz, env, stdio: 'inherit', shell: process.platform === 'win32' });
 
