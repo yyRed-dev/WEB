@@ -3,7 +3,9 @@ const prisma = require('../config/prisma');
 const AppError = require('../utils/AppError');
 const v = require('../utils/validacao');
 const { paraNumero } = require('../utils/numeros');
-const { PERFIS } = require('../config/perfis');
+const perfis = require('../config/perfis');
+
+const { PERFIS } = perfis;
 
 const MODALIDADES = ['PRESENCIAL', 'ONLINE', 'HIBRIDA'];
 const SITUACOES = ['FUTURAS', 'PASSADAS', 'TODAS'];
@@ -76,7 +78,7 @@ function paraJson(a, { cursoDoUsuarioId = null, agora = new Date() } = {}) {
  * Filtros (query string), todos opcionais:
  *   busca, categoriaId, tipoId, modalidade, de, ate (AAAA-MM-DD),
  *   cargaMin, cargaMax, cursoId, compativeis, situacao (FUTURAS|PASSADAS|TODAS),
- *   incluirCanceladas, minhas, pagina, porPagina
+ *   incluirCanceladas, minhas (as cadastradas por quem pergunta), pagina, porPagina
  */
 async function listar(query, usuario) {
   const f = v.validar({
@@ -266,11 +268,16 @@ async function verificarReferencias({ categoriaId, tipoId, cursoIds }) {
   }
 }
 
-/** Organizador só mexe nas próprias atividades; administrador em todas. */
+/**
+ * Quem pode editar/cancelar: o coordenador que cadastrou e, se
+ * COORDENADOR_EDITA_ATIVIDADES_DE_OUTROS (src/config/perfis.js), qualquer coordenador.
+ */
 function verificarPermissao(atividade, usuario) {
-  if (usuario.perfil === PERFIS.ADMINISTRADOR) return;
-  if (usuario.perfil === PERFIS.ORGANIZADOR && atividade.organizadorId === usuario.id) return;
-  throw new AppError(403, 'ACESSO_NEGADO', 'Você só pode alterar atividades que você organiza.');
+  if (usuario.perfil !== PERFIS.COORDENADOR) {
+    throw new AppError(403, 'ACESSO_NEGADO', 'Seu perfil não tem permissão para esta operação.');
+  }
+  if (atividade.organizadorId === usuario.id || perfis.COORDENADOR_EDITA_ATIVIDADES_DE_OUTROS) return;
+  throw new AppError(403, 'ACESSO_NEGADO', 'Você só pode alterar atividades que você cadastrou.');
 }
 
 // ---------------------------------------------------------------------
@@ -285,7 +292,7 @@ async function criar(corpo, usuario) {
   const atividade = await prisma.atividade.create({
     data: {
       ...campos,
-      organizadorId: usuario.id, // sempre quem está criando; não vem do corpo
+      organizadorId: usuario.id, // sempre o coordenador que está criando; não vem do corpo
       cursos: { create: cursoIds.map((cursoId) => ({ cursoId })) },
     },
     include: INCLUIR,

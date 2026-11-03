@@ -16,8 +16,10 @@ async function iniciar() {
 
   const servidor = app.listen(config.porta, () => {
     console.log(`API rodando em http://localhost:${config.porta}/api (ambiente: ${config.ambiente})`);
-    if (config.identificacao.modo === 'cabecalho') {
-      console.log('Identificação PROVISÓRIA pelo cabeçalho X-Matricula (somente desenvolvimento).');
+    const modos = { cabecalho: 'cabeçalho X-Matricula', nenhum: 'nenhuma (só rotas públicas)' };
+    console.log(`Identificação: ${modos[config.identificacao.modo]}.`);
+    if (config.producao && config.identificacao.modo === 'cabecalho') {
+      console.warn('ATENÇÃO: a API confia no cabeçalho X-Matricula. Em produção ele deve ser preenchido pelo portal da Unifor, nunca direto pelo navegador.');
     }
   });
 

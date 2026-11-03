@@ -2,6 +2,7 @@
 const { describe, it, before, after } = require('node:test');
 const assert = require('node:assert/strict');
 const h = require('./helpers');
+const perfis = require('../src/config/perfis');
 
 before(h.iniciar);
 after(h.encerrar);
@@ -9,8 +10,8 @@ after(h.encerrar);
 const DIA = 864e5;
 
 describe('POST /api/atividades (criar)', () => {
-  it('organizador cria: 201, Location e campos no formato da API', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ vagas: 80 }), como: 'ORG1' });
+  it('coordenador cria: 201, Location e campos no formato da API', async () => {
+    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ vagas: 80 }), como: 'COOA' });
     assert.equal(r.status, 201);
     const a = r.body.atividade;
     assert.equal(r.headers.get('location'), `/api/atividades/${a.id}`);
@@ -19,12 +20,12 @@ describe('POST /api/atividades (criar)', () => {
     assert.equal(a.vagas, 80);
     assert.deepEqual(a.categoria, { id: h.ids.categoria['Extensão'], nome: 'Extensão' });
     assert.deepEqual(a.tipo, { id: h.ids.tipo.Workshop, nome: 'Workshop' });
-    assert.deepEqual(a.organizador, { id: h.ids.usuario.ORG1, nome: 'Organizador Um' });
+    assert.deepEqual(a.organizador, { id: h.ids.usuario.COOA, nome: 'Coordenação A' });
     assert.equal(a.status, 'ATIVA');
     assert.equal(a.situacao, 'FUTURA');
     assert.equal(a.inscricoesAbertas, true);
     assert.deepEqual(a.cursosRecomendados, []);
-    assert.equal(a.recomendadaParaVoce, null);
+    assert.equal(a.recomendadaParaVoce, false); // o coordenador tem curso, e a atividade não é recomendada para ele
   });
 
   it('data sem fuso é lida no horário de Fortaleza (14:00 -03:00 = 17:00 UTC)', async () => {
@@ -34,26 +35,25 @@ describe('POST /api/atividades (criar)', () => {
   });
 
   it('ignora organizadorId, status e id enviados no corpo', async () => {
-    const a = await h.criarAtividade({ organizadorId: h.ids.usuario.ORG2, status: 'CANCELADA', id: 999999 });
-    assert.equal(a.organizador.id, h.ids.usuario.ORG1);
+    const a = await h.criarAtividade({ organizadorId: h.ids.usuario.COOB, status: 'CANCELADA', id: 999999 });
+    assert.equal(a.organizador.id, h.ids.usuario.COOA);
     assert.equal(a.status, 'ATIVA');
     assert.notEqual(a.id, 999999);
   });
 
-  it('administrador também pode criar', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida(), como: 'ADM1' });
+  it('coordenador de qualquer curso (ou sem curso) pode criar', async () => {
+    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida(), como: 'COOSEM' });
     assert.equal(r.status, 201);
-    assert.equal(r.body.atividade.organizador.id, h.ids.usuario.ADM1);
+    assert.equal(r.body.atividade.organizador.id, h.ids.usuario.COOSEM);
   });
 
-  it('aluno e coordenador não podem criar (403); sem identificação, 401', async () => {
+  it('aluno não pode criar (403); sem login, 401', async () => {
     assert.equal((await h.api('POST', '/atividades', { corpo: h.atividadeValida(), como: 'ALUA1' })).status, 403);
-    assert.equal((await h.api('POST', '/atividades', { corpo: h.atividadeValida(), como: 'COOA' })).status, 403);
     assert.equal((await h.api('POST', '/atividades', { corpo: h.atividadeValida() })).status, 401);
   });
 
   it('campos obrigatórios ausentes: 400 com o erro de cada campo', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: {}, como: 'ORG1' });
+    const r = await h.api('POST', '/atividades', { corpo: {}, como: 'COOA' });
     assert.equal(r.status, 400);
     assert.deepEqual(
       Object.keys(r.body.erro.detalhes.campos).sort(),
@@ -62,37 +62,37 @@ describe('POST /api/atividades (criar)', () => {
   });
 
   it('término antes do início: 400', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ dataFim: h.dataLocal(9) }), como: 'ORG1' });
+    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ dataFim: h.dataLocal(9) }), como: 'COOA' });
     assert.equal(r.status, 400);
     assert.ok(r.body.erro.detalhes.campos.dataFim);
   });
 
   it('presencial sem local: 400; online exige link ou local', async () => {
-    const r1 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ local: null }), como: 'ORG1' });
+    const r1 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ local: null }), como: 'COOA' });
     assert.equal(r1.status, 400);
     assert.ok(r1.body.erro.detalhes.campos.local);
 
-    const r2 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ modalidade: 'ONLINE', local: null }), como: 'ORG1' });
+    const r2 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ modalidade: 'ONLINE', local: null }), como: 'COOA' });
     assert.equal(r2.status, 400);
     assert.ok(r2.body.erro.detalhes.campos.link);
 
     const r3 = await h.api('POST', '/atividades', {
-      corpo: h.atividadeValida({ modalidade: 'online', local: null, link: 'https://teams.exemplo.com/reuniao' }), como: 'ORG1',
+      corpo: h.atividadeValida({ modalidade: 'online', local: null, link: 'https://teams.exemplo.com/reuniao' }), como: 'COOA',
     });
     assert.equal(r3.status, 201);
     assert.equal(r3.body.atividade.modalidade, 'ONLINE');
   });
 
   it('recusa link e imagem que não sejam http(s)', async () => {
-    const r1 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ link: 'javascript:alert(1)' }), como: 'ORG1' });
-    const r2 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ imagemUrl: 'ftp://x/img.png' }), como: 'ORG1' });
+    const r1 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ link: 'javascript:alert(1)' }), como: 'COOA' });
+    const r2 = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ imagemUrl: 'ftp://x/img.png' }), como: 'COOA' });
     assert.equal(r1.status, 400);
     assert.equal(r2.status, 400);
   });
 
   it('valida a carga horária (> 0, até 2 casas decimais)', async () => {
     for (const carga of [0, -2, 1.234, 'abc', 1000]) {
-      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ cargaHoraria: carga }), como: 'ORG1' });
+      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ cargaHoraria: carga }), como: 'COOA' });
       assert.equal(r.status, 400, `carga ${carga}`);
     }
     const ok = await h.criarAtividade({ cargaHoraria: '1,5' });
@@ -100,13 +100,13 @@ describe('POST /api/atividades (criar)', () => {
   });
 
   it('prazo de inscrição depois do fim da atividade: 400', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ prazoInscricao: h.dataLocal(11) }), como: 'ORG1' });
+    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ prazoInscricao: h.dataLocal(11) }), como: 'COOA' });
     assert.equal(r.status, 400);
     assert.ok(r.body.erro.detalhes.campos.prazoInscricao);
   });
 
   it('data inexistente (30/02): 400', async () => {
-    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ dataInicio: '2030-02-30T10:00', dataFim: null }), como: 'ORG1' });
+    const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ dataInicio: '2030-02-30T10:00', dataFim: null }), como: 'COOA' });
     assert.equal(r.status, 400);
     assert.ok(r.body.erro.detalhes.campos.dataInicio);
   });
@@ -115,7 +115,7 @@ describe('POST /api/atividades (criar)', () => {
     const inativa = await h.prisma.categoria.create({ data: { nome: 'Inativa Teste', ativa: false } });
     const casos = [{ categoriaId: 99999 }, { categoriaId: inativa.id }, { tipoId: 99999 }];
     for (const extra of casos) {
-      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida(extra), como: 'ORG1' });
+      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida(extra), como: 'COOA' });
       assert.equal(r.status, 400, JSON.stringify(extra));
     }
   });
@@ -124,7 +124,7 @@ describe('POST /api/atividades (criar)', () => {
     const a = await h.criarAtividade({ cursoIds: [h.ids.curso.A, h.ids.curso.A] });
     assert.deepEqual(a.cursosRecomendados, [{ id: h.ids.curso.A, nome: 'Curso Teste A' }]);
     for (const cursoIds of [[99999], [h.ids.curso.inativo], 'A']) {
-      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ cursoIds }), como: 'ORG1' });
+      const r = await h.api('POST', '/atividades', { corpo: h.atividadeValida({ cursoIds }), como: 'COOA' });
       assert.equal(r.status, 400, JSON.stringify(cursoIds));
     }
   });
@@ -157,17 +157,17 @@ describe('GET /api/atividades (catálogo e filtros)', () => {
     const criar = (campos) => h.criarAtividadeNoBanco(campos);
     const web = await criar({
       titulo: 'Workshop de Desenvolvimento Web', categoriaId: h.ids.categoria['Extensão'], tipoId: h.ids.tipo.Workshop,
-      dataInicio: new Date(agora + 3 * DIA), cargaHoraria: 4, organizadorId: h.ids.usuario.ORG1,
+      dataInicio: new Date(agora + 3 * DIA), cargaHoraria: 4, organizadorId: h.ids.usuario.COOA,
     });
     const semana = await criar({
       titulo: 'Semana Acadêmica de Computação', categoriaId: h.ids.categoria.Ensino, tipoId: h.ids.tipo.Evento,
-      dataInicio: new Date(agora + 10 * DIA), dataFim: new Date(agora + 12 * DIA), cargaHoraria: 10, organizadorId: h.ids.usuario.ORG2,
+      dataInicio: new Date(agora + 10 * DIA), dataFim: new Date(agora + 12 * DIA), cargaHoraria: 10, organizadorId: h.ids.usuario.COOB,
       cursos: { create: [{ cursoId: h.ids.curso.A }] },
     });
     const minicurso = await criar({
       titulo: 'Minicurso de Pesquisa Científica', categoriaId: h.ids.categoria.Pesquisa, tipoId: h.ids.tipo.Minicurso,
       modalidade: 'ONLINE', local: 'Online (via Microsoft Teams)', dataInicio: new Date(agora + 20 * DIA), cargaHoraria: 6,
-      organizadorId: h.ids.usuario.ORG1, cursos: { create: [{ cursoId: h.ids.curso.B }] },
+      organizadorId: h.ids.usuario.COOA, cursos: { create: [{ cursoId: h.ids.curso.B }] },
     });
     const emAndamento = await criar({
       titulo: 'Projeto em andamento', dataInicio: new Date(agora - 2 * DIA), dataFim: new Date(agora + 2 * DIA),
@@ -236,11 +236,11 @@ describe('GET /api/atividades (catálogo e filtros)', () => {
 
   it('compativeis=true sem curso conhecido: 400', async () => {
     assert.equal((await h.api('GET', '/atividades?compativeis=true')).status, 400);
-    assert.equal((await h.api('GET', '/atividades?compativeis=true', { como: 'ORG1' })).status, 400);
+    assert.equal((await h.api('GET', '/atividades?compativeis=true', { como: 'COOSEM' })).status, 400);
   });
 
-  it('minhas=true mostra as do organizador identificado (exige identificação)', async () => {
-    assert.deepEqual(idsDe(await listar('?minhas=true', 'ORG2')), [ids.semana]);
+  it('minhas=true mostra as cadastradas pelo coordenador identificado (exige login)', async () => {
+    assert.deepEqual(idsDe(await listar('?minhas=true', 'COOB')), [ids.semana]);
     assert.equal((await h.api('GET', '/atividades?minhas=true')).status, 401);
   });
 
@@ -258,9 +258,9 @@ describe('GET /api/atividades (catálogo e filtros)', () => {
 });
 
 describe('PATCH /api/atividades/:id (editar)', () => {
-  it('o organizador dono altera só os campos enviados', async () => {
+  it('o coordenador que cadastrou altera só os campos enviados', async () => {
     const a = await h.criarAtividade({ vagas: 30 });
-    const r = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { titulo: 'Workshop de Web Moderno', vagas: null }, como: 'ORG1' });
+    const r = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { titulo: 'Workshop de Web Moderno', vagas: null }, como: 'COOA' });
     assert.equal(r.status, 200);
     assert.equal(r.body.atividade.titulo, 'Workshop de Web Moderno');
     assert.equal(r.body.atividade.vagas, null);
@@ -268,18 +268,33 @@ describe('PATCH /api/atividades/:id (editar)', () => {
     assert.equal(r.body.atividade.cargaHoraria, 4);
   });
 
-  it('outro organizador: 403; administrador: 200; aluno: 403', async () => {
+  it('só o coordenador que cadastrou edita: outro coordenador 403, mesmo do mesmo curso; aluno 403', async () => {
     const a = await h.criarAtividade();
-    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'ORG2' })).status, 403);
     assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'ALUA1' })).status, 403);
-    const admin = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'ADM1' });
-    assert.equal(admin.status, 200);
-    assert.equal(admin.body.atividade.cargaHoraria, 5);
+    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'COOB' })).status, 403);
+    const mesmoCurso = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'COOA2' });
+    assert.equal(mesmoCurso.status, 403);
+    assert.equal(mesmoCurso.body.erro.mensagem, 'Você só pode alterar atividades que você cadastrou.');
+    const dono = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 5 }, como: 'COOA' });
+    assert.equal(dono.status, 200);
+    assert.equal(dono.body.atividade.cargaHoraria, 5);
+  });
+
+  it('com COORDENADOR_EDITA_ATIVIDADES_DE_OUTROS = true, qualquer coordenador edita', async () => {
+    const a = await h.criarAtividade();
+    perfis.COORDENADOR_EDITA_ATIVIDADES_DE_OUTROS = true;
+    try {
+      const r = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cargaHoraria: 6 }, como: 'COOB' });
+      assert.equal(r.status, 200);
+      assert.equal(r.body.atividade.organizador.id, h.ids.usuario.COOA); // continua mostrando quem cadastrou
+    } finally {
+      perfis.COORDENADOR_EDITA_ATIVIDADES_DE_OUTROS = false;
+    }
   });
 
   it('corpo sem campos conhecidos: 400', async () => {
     const a = await h.criarAtividade();
-    const r = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { organizadorId: 1 }, como: 'ORG1' });
+    const r = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { organizadorId: 1 }, como: 'COOA' });
     assert.equal(r.status, 400);
     assert.equal(r.body.erro.codigo, 'NADA_PARA_ATUALIZAR');
   });
@@ -287,30 +302,30 @@ describe('PATCH /api/atividades/:id (editar)', () => {
   it('regras entre campos usam o valor atual quando o campo não é enviado', async () => {
     const a = await h.criarAtividade();
     // novo término antes do início já gravado
-    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { dataFim: h.dataLocal(9) }, como: 'ORG1' })).status, 400);
+    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { dataFim: h.dataLocal(9) }, como: 'COOA' })).status, 400);
     // apagar o local de uma atividade presencial
-    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { local: null }, como: 'ORG1' })).status, 400);
+    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { local: null }, como: 'COOA' })).status, 400);
     // virar ONLINE mantendo o local já gravado é aceito
-    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { modalidade: 'ONLINE' }, como: 'ORG1' })).status, 200);
+    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { modalidade: 'ONLINE' }, como: 'COOA' })).status, 200);
   });
 
   it('substitui a lista de cursos recomendados', async () => {
     const a = await h.criarAtividade({ cursoIds: [h.ids.curso.A] });
-    const r1 = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cursoIds: [h.ids.curso.B] }, como: 'ORG1' });
+    const r1 = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cursoIds: [h.ids.curso.B] }, como: 'COOA' });
     assert.deepEqual(r1.body.atividade.cursosRecomendados.map((c) => c.id), [h.ids.curso.B]);
-    const r2 = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cursoIds: [] }, como: 'ORG1' });
+    const r2 = await h.api('PATCH', `/atividades/${a.id}`, { corpo: { cursoIds: [] }, como: 'COOA' });
     assert.deepEqual(r2.body.atividade.cursosRecomendados, []);
   });
 
   it('atividade inexistente: 404', async () => {
-    assert.equal((await h.api('PATCH', '/atividades/999999', { corpo: { titulo: 'Qualquer' }, como: 'ADM1' })).status, 404);
+    assert.equal((await h.api('PATCH', '/atividades/999999', { corpo: { titulo: 'Qualquer' }, como: 'COOA' })).status, 404);
   });
 });
 
 describe('DELETE /api/atividades/:id (cancelar)', () => {
   it('cancela sem apagar: continua consultável, sai do catálogo padrão', async () => {
     const a = await h.criarAtividade({ titulo: 'Atividade para cancelar' });
-    const r = await h.api('DELETE', `/atividades/${a.id}`, { corpo: { motivo: 'Palestrante indisponível' }, como: 'ORG1' });
+    const r = await h.api('DELETE', `/atividades/${a.id}`, { corpo: { motivo: 'Palestrante indisponível' }, como: 'COOA' });
     assert.equal(r.status, 200);
     assert.equal(r.body.atividade.status, 'CANCELADA');
     assert.equal(r.body.atividade.motivoCancelamento, 'Palestrante indisponível');
@@ -323,22 +338,22 @@ describe('DELETE /api/atividades/:id (cancelar)', () => {
 
   it('cancelar de novo: 409; editar cancelada: 409', async () => {
     const a = await h.criarAtividade();
-    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'ORG1' })).status, 200); // sem corpo
-    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'ORG1' })).status, 409);
-    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { titulo: 'Novo título' }, como: 'ORG1' })).status, 409);
+    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'COOA' })).status, 200); // sem corpo
+    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'COOA' })).status, 409);
+    assert.equal((await h.api('PATCH', `/atividades/${a.id}`, { corpo: { titulo: 'Novo título' }, como: 'COOA' })).status, 409);
   });
 
-  it('só o dono ou o administrador cancelam', async () => {
+  it('só o coordenador que cadastrou cancela (aluno e outro coordenador: 403)', async () => {
     const a = await h.criarAtividade();
-    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'ORG2' })).status, 403);
     assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'ALUA1' })).status, 403);
-    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'ADM1' })).status, 200);
+    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'COOA2' })).status, 403);
+    assert.equal((await h.api('DELETE', `/atividades/${a.id}`, { como: 'COOA' })).status, 200);
   });
 
   it('as submissões ligadas à atividade continuam existindo', async () => {
     const a = await h.criarAtividade();
     const s = await h.criarSubmissao('ALUA1', 'Extensão', { atividadeId: a.id, horasSolicitadas: 4 });
-    await h.api('DELETE', `/atividades/${a.id}`, { como: 'ORG1' });
+    await h.api('DELETE', `/atividades/${a.id}`, { como: 'COOA' });
     const ainda = await h.prisma.submissao.findUnique({ where: { id: s.id } });
     assert.equal(ainda.atividadeId, a.id);
   });

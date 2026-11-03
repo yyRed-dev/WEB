@@ -3,11 +3,11 @@ const AppError = require('../utils/AppError');
 const v = require('../utils/validacao');
 const { PERFIS } = require('../config/perfis');
 
-/** Itens inativos só aparecem para o administrador (gestão). */
+/** Itens inativos só aparecem para o coordenador (gestão). */
 function querInativos(req, nomeParametro) {
   const valor = v.validar({ [nomeParametro]: v.booleano(req.query[nomeParametro], nomeParametro) })[nomeParametro];
-  if (valor && req.usuario?.perfil !== PERFIS.ADMINISTRADOR) {
-    throw new AppError(403, 'ACESSO_NEGADO', 'Somente administradores podem listar itens inativos.');
+  if (valor && req.usuario?.perfil !== PERFIS.COORDENADOR) {
+    throw new AppError(403, 'ACESSO_NEGADO', 'Somente coordenadores podem listar itens inativos.');
   }
   return valor;
 }
