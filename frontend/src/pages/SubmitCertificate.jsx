@@ -1,12 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { apiGet, apiPost } from '../services/api.js'
 
 // Estado inicial do formulário (usado também para limpar)
 const formVazio = {
   titulo: '',
-  atividade: '',
+  atividadeId: '',
   instituicao: '',
-  categoria: '',
+  categoriaId: '',
   cargaHoraria: '',
   dataInicio: '',
   dataFim: '',
@@ -17,12 +18,41 @@ const formVazio = {
 const tiposAceitos = ['application/pdf', 'image/jpeg', 'image/png']
 const tamanhoMaximo = 10 * 1024 * 1024 // 10 MB
 
+// Listas de exemplo, usadas se a API não responder
+const categoriasExemplo = [
+  { id: 1, nome: 'Ensino' },
+  { id: 2, nome: 'Pesquisa' },
+  { id: 3, nome: 'Extensão' },
+]
+const atividadesExemplo = [
+  { id: 1, titulo: 'Semana de Tecnologia' },
+  { id: 2, titulo: 'Monitoria de Algoritmos' },
+  { id: 3, titulo: 'Curso de Git e GitHub' },
+]
+
+// Data de hoje no formato AAAA-MM-DD (para comparar com os campos de data)
+const hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Fortaleza' })
+
 function SubmitCertificate() {
   const [form, setForm] = useState(formVazio) // valores dos campos de texto
   const [arquivo, setArquivo] = useState(null) // anexo escolhido
   const [erros, setErros] = useState({}) // mensagens de validação por campo
+  const [erroGeral, setErroGeral] = useState('') // erro devolvido pela API
   const [enviando, setEnviando] = useState(false) // true enquanto o envio está em andamento
   const [sucesso, setSucesso] = useState(false) // true depois de enviar com sucesso
+  const [categorias, setCategorias] = useState(categoriasExemplo)
+  const [atividades, setAtividades] = useState(atividadesExemplo)
+  const [semApi, setSemApi] = useState(false) // true = envio simulado
+
+  // Categorias e atividades do catálogo (os selects usam os ids da API)
+  useEffect(() => {
+    Promise.all([apiGet('/categorias'), apiGet('/atividades?situacao=todas&porPagina=100')])
+      .then(([respCategorias, respAtividades]) => {
+        setCategorias(respCategorias.categorias)
+        setAtividades(respAtividades.atividades)
+      })
+      .catch(() => setSemApi(true))
+  }, [])
 
   // Atualiza qualquer campo usando o "name" do input
   function alterar(e) {
@@ -33,8 +63,13 @@ function SubmitCertificate() {
   function validar() {
     const novosErros = {}
     if (!form.titulo.trim()) novosErros.titulo = 'Informe o título.'
-    if (!form.categoria) novosErros.categoria = 'Escolha a categoria.'
+    if (!form.categoriaId) novosErros.categoriaId = 'Escolha a categoria.'
     if (!form.cargaHoraria || Number(form.cargaHoraria) <= 0) novosErros.cargaHoraria = 'Informe a carga horária.'
+    // Mesmas regras da API para o período
+    if (form.dataInicio > hoje) novosErros.dataInicio = 'A data não pode estar no futuro.'
+    if (form.dataFim && !form.dataInicio) novosErros.dataInicio = 'Informe o início.'
+    if (form.dataFim > hoje) novosErros.dataFim = 'A data não pode estar no futuro.'
+    else if (form.dataFim && form.dataFim < form.dataInicio) novosErros.dataFim = 'O fim não pode ser antes do início.'
     if (!arquivo) {
       novosErros.arquivo = 'Anexe o certificado.'
     } else if (!tiposAceitos.includes(arquivo.type)) {
@@ -45,7 +80,7 @@ function SubmitCertificate() {
     return novosErros
   }
 
-  function enviar(e) {
+  async function enviar(e) {
     e.preventDefault() // evita o recarregamento padrão do <form>
     if (enviando) return // bloqueia envio duplo
 
@@ -53,15 +88,29 @@ function SubmitCertificate() {
     setErros(novosErros)
     if (Object.keys(novosErros).length > 0) return // há erros: não envia
 
+    setErroGeral('')
     setEnviando(true)
-    // Envio simulado até a rota da API existir.
-    // Com a API, se der erro, basta não limpar o formulário para manter os dados.
-    setTimeout(() => {
-      setEnviando(false)
+    try {
+      if (semApi) {
+        // Sem API: envio simulado para a demonstração
+        await new Promise((resolve) => setTimeout(resolve, 800))
+      } else {
+        // multipart/form-data: campos do formulário + arquivo (só os preenchidos)
+        const dados = new FormData()
+        Object.entries(form).forEach(([campo, valor]) => {
+          if (valor !== '') dados.append(campo, valor)
+        })
+        dados.append('arquivo', arquivo)
+        await apiPost('/submissoes', dados)
+      }
       setSucesso(true)
       setForm(formVazio)
       setArquivo(null)
-    }, 1000)
+    } catch (err) {
+      setErroGeral(err.message) // erro: os dados digitados continuam no formulário
+    } finally {
+      setEnviando(false)
+    }
   }
 
   // Limpa o formulário, confirmando antes se houver algo preenchido
@@ -71,6 +120,7 @@ function SubmitCertificate() {
     setForm(formVazio)
     setArquivo(null)
     setErros({})
+    setErroGeral('')
   }
 
   // Depois do envio, mostra a mensagem de sucesso no lugar do formulário
@@ -88,6 +138,11 @@ function SubmitCertificate() {
     <>
       <h2 className="mb-4">Enviar Certificado</h2>
 
+      {semApi && (
+        <div className="alert alert-warning py-2 small">Não foi possível conectar à API. O envio será apenas simulado.</div>
+      )}
+      {erroGeral && <div className="alert alert-danger py-2">{erroGeral}</div>}
+
       {/* noValidate: usa só a nossa validação, não a do navegador */}
       <form className="card p-4" onSubmit={enviar} noValidate>
         <div className="row g-3">
@@ -101,11 +156,9 @@ function SubmitCertificate() {
           {/* Opcional: liga o certificado a uma atividade da vitrine */}
           <div className="col-md-4">
             <label className="form-label">Atividade cadastrada</label>
-            <select name="atividade" className="form-select" value={form.atividade} onChange={alterar}>
+            <select name="atividadeId" className="form-select" value={form.atividadeId} onChange={alterar}>
               <option value="">Nenhuma</option>
-              <option>Semana de Tecnologia</option>
-              <option>Monitoria de Algoritmos</option>
-              <option>Curso de Git e GitHub</option>
+              {atividades.map((a) => <option key={a.id} value={a.id}>{a.titulo}</option>)}
             </select>
           </div>
 
@@ -116,13 +169,11 @@ function SubmitCertificate() {
 
           <div className="col-md-3">
             <label className="form-label">Categoria *</label>
-            <select name="categoria" className={`form-select ${erros.categoria ? 'is-invalid' : ''}`} value={form.categoria} onChange={alterar}>
+            <select name="categoriaId" className={`form-select ${erros.categoriaId ? 'is-invalid' : ''}`} value={form.categoriaId} onChange={alterar}>
               <option value="">Selecione</option>
-              <option>Ensino</option>
-              <option>Pesquisa</option>
-              <option>Extensão</option>
+              {categorias.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
             </select>
-            <div className="invalid-feedback">{erros.categoria}</div>
+            <div className="invalid-feedback">{erros.categoriaId}</div>
           </div>
 
           <div className="col-md-3">
@@ -134,12 +185,14 @@ function SubmitCertificate() {
           {/* Período de realização */}
           <div className="col-md-3">
             <label className="form-label">Início</label>
-            <input name="dataInicio" type="date" className="form-control" value={form.dataInicio} onChange={alterar} />
+            <input name="dataInicio" type="date" max={hoje} className={`form-control ${erros.dataInicio ? 'is-invalid' : ''}`} value={form.dataInicio} onChange={alterar} />
+            <div className="invalid-feedback">{erros.dataInicio}</div>
           </div>
 
           <div className="col-md-3">
             <label className="form-label">Fim</label>
-            <input name="dataFim" type="date" className="form-control" value={form.dataFim} onChange={alterar} />
+            <input name="dataFim" type="date" max={hoje} className={`form-control ${erros.dataFim ? 'is-invalid' : ''}`} value={form.dataFim} onChange={alterar} />
+            <div className="invalid-feedback">{erros.dataFim}</div>
           </div>
 
           {/* O arquivo fica num estado separado, pois não é texto */}

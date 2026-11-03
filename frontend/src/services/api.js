@@ -1,4 +1,4 @@
-import { obterUsuarioLogado } from './auth.js'
+import { obterUsuarioLogado, sair } from './auth.js'
 
 // Endereço da API (pode ser trocado com VITE_API_URL no arquivo .env)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
@@ -9,8 +9,22 @@ async function requisitar(caminho, opcoes = {}) {
   const headers = { ...opcoes.headers }
   if (usuario) headers['X-Matricula'] = usuario.matricula
 
-  const resposta = await fetch(API_URL + caminho, { ...opcoes, headers })
+  let resposta
+  try {
+    resposta = await fetch(API_URL + caminho, { ...opcoes, headers })
+  } catch {
+    // A API nem respondeu (desligada ou sem rede): as telas usam dados de exemplo
+    const erro = new Error('Não foi possível conectar à API.')
+    erro.semConexao = true
+    throw erro
+  }
   const dados = await resposta.json().catch(() => null)
+
+  // 401 com alguém logado = conta inexistente ou desativada: volta ao login
+  if (resposta.status === 401 && usuario && !caminho.startsWith('/auth')) {
+    sair()
+    window.location.assign('/login')
+  }
 
   // Erros da API vêm como { erro: { codigo, mensagem } }
   if (!resposta.ok) {

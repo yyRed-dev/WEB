@@ -1,30 +1,64 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { apiGet } from '../services/api.js'
 
-// Dados de exemplo até a rota de submissões existir na API
-const submissoes = [
+// Dados de exemplo, usados se a API não responder
+const submissoesExemplo = [
   { id: 1, atividade: 'Semana de Tecnologia', horas: 20, data: '05/10/2026', status: 'Aprovada', motivo: '' },
   { id: 2, atividade: 'Curso de Git e GitHub', horas: 8, data: '12/10/2026', status: 'Pendente', motivo: '' },
   { id: 3, atividade: 'Palestra de Carreira', horas: 4, data: '18/10/2026', status: 'Rejeitada', motivo: 'Certificado ilegível' },
   { id: 4, atividade: 'Monitoria de Algoritmos', horas: 30, data: '20/10/2026', status: 'Pendente', motivo: '' },
 ]
 
-// Cor do badge para cada status
+// A API usa PENDENTE/APROVADA/REJEITADA; a tela mostra com a primeira letra maiúscula
+const nomesStatus = { PENDENTE: 'Pendente', APROVADA: 'Aprovada', REJEITADA: 'Rejeitada' }
+
+// Cor do badge (Bootstrap) para cada status
 const coresStatus = {
   Aprovada: 'bg-success',
   Pendente: 'bg-warning text-dark',
   Rejeitada: 'bg-danger',
 }
 
+// Converte uma submissão da API para o formato da tabela
+function daApi(s) {
+  return {
+    id: s.id,
+    atividade: s.titulo,
+    // Se aprovada, mostra as horas que valeram de fato
+    horas: s.status === 'APROVADA' && s.horasAprovadas != null ? s.horasAprovadas : s.horasSolicitadas,
+    data: new Date(s.enviadaEm).toLocaleDateString('pt-BR', { timeZone: 'America/Fortaleza' }),
+    status: nomesStatus[s.status] || s.status,
+    motivo: s.motivoRejeicao || '',
+  }
+}
+
 function MySubmissions() {
+  const [submissoes, setSubmissoes] = useState(submissoesExemplo)
   const [status, setStatus] = useState('Todos')
+  const [carregando, setCarregando] = useState(true)
+  const [usandoExemplo, setUsandoExemplo] = useState(false)
+
+  // Busca as submissões do aluno logado quando a tela abre
+  useEffect(() => {
+    apiGet('/submissoes/minhas?porPagina=100')
+      .then((resposta) => setSubmissoes(resposta.submissoes.map(daApi)))
+      .catch(() => setUsandoExemplo(true))
+      .finally(() => setCarregando(false))
+  }, [])
 
   const filtradas = status === 'Todos'
     ? submissoes
     : submissoes.filter((s) => s.status === status)
 
+  if (carregando) return <p className="text-muted">Carregando...</p>
+
   return (
     <>
       <h2 className="mb-4">Minhas Submissões</h2>
+
+      {usandoExemplo && (
+        <div className="alert alert-warning py-2 small">Não foi possível conectar à API. Mostrando dados de exemplo.</div>
+      )}
 
       <div className="col-md-4 mb-4">
         <select className="form-select" value={status} onChange={(e) => setStatus(e.target.value)}>
