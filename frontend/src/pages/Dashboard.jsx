@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { apiGet } from '../services/api.js'
-import { obterUsuarioLogado } from '../services/auth.js'
+import { obterUsuarioLogado, semPrefixoDemo } from '../services/auth.js'
 
 // Dados de exemplo (Figma), usados se a API não responder
 const dadosExemplo = {
@@ -25,7 +25,7 @@ function Dashboard() {
     apiGet('/progresso')
       .then((resposta) => {
         setDados({
-          curso: resposta.curso.nome,
+          curso: semPrefixoDemo(resposta.curso.nome),
           concluidas: resposta.horas.concluidas,
           minima: resposta.horas.minima,
           categorias: resposta.porCategoria.map((c) => ({

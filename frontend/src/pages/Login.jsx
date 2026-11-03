@@ -55,7 +55,7 @@ function Login({ onLogin }) {
 
       {/* Ajuda para a demonstração (remover quando o login for real) */}
       <p className="small text-muted text-center mt-3">
-        Demonstração: <strong>DEMOALU01</strong> (aluno) ou <strong>DEMOCOO01</strong> (coordenador), com qualquer senha.
+        Contas de teste: <strong>DEMOALU01</strong> (aluno) ou <strong>DEMOCOO01</strong> (coordenador), senha <strong>demo1234</strong>.
       </p>
     </div>
   )

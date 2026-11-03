@@ -1,52 +1,49 @@
-// Login e cadastro SIMULADOS no front.
-// Quando o back tiver as rotas, trocar o corpo de login() e cadastrar()
-// por chamadas fetch à API. As telas não precisam mudar.
+// Login e cadastro pela API (POST /auth/login e POST /auth/cadastro).
+// Se a API estiver fora do ar, entra no modo de demonstração com os usuários de teste.
+import { apiPost } from './api.js'
 
 const CHAVE_SESSAO = 'usuarioLogado'
-const CHAVE_CADASTROS = 'usuariosCadastrados'
 
-// Mesmas matrículas demo usadas pelo back (X-Matricula)
+// Usuários de teste do back (npm run db:demo), usados só se a API não responder
 const usuariosDemo = [
-  { matricula: 'DEMOALU01', nome: 'Aluno Demo', perfil: 'ALUNO' },
+  { matricula: 'DEMOALU01', nome: 'Lucas Almeida', perfil: 'ALUNO' },
   { matricula: 'DEMOALU02', nome: 'Aluno Demo 2', perfil: 'ALUNO' },
-  { matricula: 'DEMOCOO01', nome: 'Coordenador Demo', perfil: 'COORDENADOR' },
+  { matricula: 'DEMOCOO01', nome: 'Coordenação de Computação', perfil: 'COORDENADOR' },
 ]
 
-function lerCadastros() {
-  try {
-    return JSON.parse(localStorage.getItem(CHAVE_CADASTROS)) || []
-  } catch {
-    return []
-  }
+// Os dados de teste do back vêm com "[DEMO]" no nome
+export function semPrefixoDemo(texto) {
+  return (texto || '').replace(/^\[DEMO\]\s*/, '')
 }
 
-// Simula o tempo de resposta da API
-function esperar(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-export async function login(matricula, senha) {
-  await esperar(500)
-  const mat = matricula.trim().toUpperCase()
-  const usuario = [...usuariosDemo, ...lerCadastros()].find((u) => u.matricula === mat)
-  // Simulação: aceita qualquer senha para uma matrícula conhecida
-  if (!usuario || !senha) throw new Error('Matrícula ou senha inválidas.')
-
-  const sessao = { matricula: usuario.matricula, nome: usuario.nome, perfil: usuario.perfil }
+function salvarSessao(usuario) {
+  const sessao = { matricula: usuario.matricula, nome: semPrefixoDemo(usuario.nome), perfil: usuario.perfil }
   localStorage.setItem(CHAVE_SESSAO, JSON.stringify(sessao))
   return sessao
 }
 
-export async function cadastrar({ nome, matricula, email }) {
-  await esperar(500)
-  const mat = matricula.trim().toUpperCase()
-  const cadastros = lerCadastros()
-  if ([...usuariosDemo, ...cadastros].some((u) => u.matricula === mat)) {
-    throw new Error('Já existe uma conta com essa matrícula.')
+export async function login(matricula, senha) {
+  try {
+    const { usuario } = await apiPost('/auth/login', { matricula: matricula.trim(), senha })
+    return salvarSessao(usuario)
+  } catch (err) {
+    if (!err.semConexao) throw err // senha errada, conta bloqueada etc.
+
+    // Modo de demonstração: aceita qualquer senha para um usuário de teste
+    const usuario = usuariosDemo.find((u) => u.matricula === matricula.trim().toUpperCase())
+    if (!usuario) throw new Error('API fora do ar. Use DEMOALU01 ou DEMOCOO01 para a demonstração.', { cause: err })
+    return salvarSessao(usuario)
   }
-  // A senha não é guardada: na simulação ela não é conferida
-  cadastros.push({ matricula: mat, nome: nome.trim(), email: email.trim(), perfil: 'ALUNO' })
-  localStorage.setItem(CHAVE_CADASTROS, JSON.stringify(cadastros))
+}
+
+export async function cadastrar({ nome, matricula, email, senha, cursoId }) {
+  await apiPost('/auth/cadastro', {
+    nome: nome.trim(),
+    matricula: matricula.trim(),
+    email: email.trim(),
+    senha,
+    cursoId: Number(cursoId),
+  })
 }
 
 export function obterUsuarioLogado() {
@@ -57,6 +54,7 @@ export function obterUsuarioLogado() {
   }
 }
 
+// Não existe logout na API (não há sessão): basta apagar o usuário guardado
 export function sair() {
   localStorage.removeItem(CHAVE_SESSAO)
 }
