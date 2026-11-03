@@ -35,10 +35,12 @@ const env = {
   UPLOADS_DIR: path.join(require('node:os').tmpdir(), `portal-testes-uploads-${process.pid}`),
 };
 const raiz = path.join(__dirname, '..');
-const executar = (comando, args) => spawnSync(comando, args, { cwd: raiz, env, stdio: 'inherit', shell: process.platform === 'win32' });
+// `shell` só para o npx (no Windows ele é um .cmd). O Node é chamado direto,
+// sem shell, para o caminho "C:\Program Files\..." não quebrar no espaço.
+const executar = (comando, args, { shell = false } = {}) => spawnSync(comando, args, { cwd: raiz, env, stdio: 'inherit', shell });
 
 console.log(`Recriando o banco de testes "${nomeBanco}"...`);
-const reset = executar('npx', ['prisma', 'migrate', 'reset', '--force', '--skip-seed', '--skip-generate']);
+const reset = executar('npx', ['prisma', 'migrate', 'reset', '--force', '--skip-seed', '--skip-generate'], { shell: process.platform === 'win32' });
 if (reset.status !== 0) process.exit(reset.status ?? 1);
 
 // Lista explícita de arquivos (funciona igual no Node 20 e 22, Windows ou Linux).
