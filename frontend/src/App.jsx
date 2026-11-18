@@ -9,12 +9,14 @@ import ManageActivities from './pages/ManageActivities.jsx'
 import NotFound from './pages/NotFound.jsx'
 import Login from './pages/Login.jsx'
 import Register from './pages/Register.jsx'
+import Tutorial from './pages/Tutorial.jsx'
 import InstitutionalHeader from './components/layout/InstitutionalHeader.jsx'
 import PageBreadcrumb from './components/layout/PageBreadcrumb.jsx'
 import { obterUsuarioLogado, sair } from './services/auth.js'
 
 const DASHBOARD = '/atividades-complementares/dashboard'
 const PAINEL = '/atividades-complementares/coordenador'
+const TUTORIAL = '/atividades-complementares/tutorial'
 
 function App() {
   // Começa com o usuário salvo no navegador (se já tiver feito login antes)
@@ -25,13 +27,14 @@ function App() {
     setUsuario(null)
   }
 
-  // Sem login: só as telas de entrar e criar conta
+  // Sem login: só as telas de entrar, criar conta e o tutorial
   if (!usuario) {
     return (
       <div className="container py-5">
         <Routes>
           <Route path="/login" element={<Login onLogin={setUsuario} />} />
           <Route path="/cadastro" element={<Register />} />
+          <Route path={TUTORIAL} element={<Tutorial usuario={null} />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </div>
@@ -55,6 +58,8 @@ function App() {
           <Route path="/login" element={inicio} />
           <Route path="/cadastro" element={inicio} />
           <Route path="/atividades-complementares/atividades" element={<Activities />} />
+          {/* Tutorial: para os dois perfis */}
+          <Route path={TUTORIAL} element={<Tutorial usuario={usuario} />} />
           {/* Telas só de aluno e só de coordenador; sem permissão, volta ao início (a API também vai validar) */}
           <Route path={DASHBOARD} element={ehAluno ? <Dashboard /> : inicio} />
           <Route path="/atividades-complementares/certificados/enviar" element={ehAluno ? <SubmitCertificate /> : inicio} />

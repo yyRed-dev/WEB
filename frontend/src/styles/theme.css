@@ -49,6 +49,25 @@
   --bs-card-border-radius: var(--ac-raio);
 }
 
+/* Tutorial: número de cada passo */
+.tutorial-numero {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ac-azul);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Tutorial: caixa de dica sobre o menu */
+.tutorial-menu-dica {
+  border-left: 4px solid var(--ac-azul);
+}
+
 /* Botão "Atividades Complementares" do cabeçalho */
 .navbar .nav-link:hover {
   opacity: 0.8;

@@ -53,6 +53,13 @@ function Login({ onLogin }) {
         </p>
       </form>
 
+      {/* Tutorial acessível antes do login */}
+      <p className="text-center mt-3 mb-0">
+        <Link to="/atividades-complementares/tutorial">
+          <i className="bi bi-question-circle"></i> Primeira vez aqui? Veja como usar o portal
+        </Link>
+      </p>
+
       {/* Ajuda para a demonstração (remover quando o login for real) */}
       <p className="small text-muted text-center mt-3">
         Contas de teste: <strong>DEMOALU01</strong> (aluno) ou <strong>DEMOCOO01</strong> (coordenador), senha <strong>demo1234</strong>.

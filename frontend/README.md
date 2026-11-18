@@ -40,8 +40,11 @@ Se a API estiver desligada, as telas mostram um aviso e usam dados de exemplo; o
 | `/atividades-complementares/submissoes` | Minhas Submissões | Aluno |
 | `/atividades-complementares/coordenador` | Painel do Coordenador | Coordenador |
 | `/atividades-complementares/coordenador/atividades` | Gerenciar Atividades | Coordenador |
+| `/atividades-complementares/tutorial` | Como usar o portal (tutorial) | Todos, inclusive sem login |
 
-Sem login, qualquer endereço leva para `/login`. Telas de outro perfil voltam para a tela inicial (Dashboard para o aluno, Painel para o coordenador).
+O tutorial fica no fim do menu "Atividades Complementares" e também tem um link na tela de login. Ele mostra o passo a passo do perfil de quem está logado, e um botão permite ver o do outro perfil.
+
+Sem login, qualquer endereço leva para `/login`, exceto o tutorial. Telas de outro perfil voltam para a tela inicial (Dashboard para o aluno, Painel para o coordenador).
 
 ## Estrutura
 

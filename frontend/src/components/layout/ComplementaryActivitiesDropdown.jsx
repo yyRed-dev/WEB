@@ -9,6 +9,7 @@ const todosItens = [
   { to: '/atividades-complementares/submissoes', texto: 'Minhas Submissões', perfis: ['ALUNO'] },
   { to: '/atividades-complementares/coordenador', texto: 'Painel do Coordenador', perfis: ['COORDENADOR'] },
   { to: '/atividades-complementares/coordenador/atividades', texto: 'Gerenciar Atividades', perfis: ['COORDENADOR'] },
+  { to: '/atividades-complementares/tutorial', texto: 'Como usar o portal', perfis: ['ALUNO', 'COORDENADOR'], separado: true },
 ]
 
 // Menu "Atividades Complementares": o conteúdo muda conforme o perfil
@@ -57,8 +58,11 @@ function ComplementaryActivitiesDropdown({ perfil }) {
       <ul className={`dropdown-menu ${aberto ? 'show' : ''}`}>
         {itens.map((item) => (
           <li key={item.to}>
+            {/* "separado": linha divisória antes do item (usado no tutorial) */}
+            {item.separado && <hr className="dropdown-divider" />}
             {/* Fecha o menu ao escolher uma opção */}
             <NavLink className="dropdown-item" to={item.to} onClick={() => setAberto(false)}>
+              {item.separado && <i className="bi bi-question-circle me-1"></i>}
               {item.texto}
             </NavLink>
           </li>

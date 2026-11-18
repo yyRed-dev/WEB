@@ -8,6 +8,7 @@ const nomes = {
   '/atividades-complementares/submissoes': 'Minhas Submissões',
   '/atividades-complementares/coordenador': 'Painel do Coordenador',
   '/atividades-complementares/coordenador/atividades': 'Gerenciar Atividades',
+  '/atividades-complementares/tutorial': 'Como usar o portal',
 }
 
 // "Atividades Complementares / [Página]"
